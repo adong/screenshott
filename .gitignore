@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+dist/
+# Intermediate PNGs; scripts/make-icon.sh regenerates them and AppIcon.icns is committed.
+Support/AppIcon.iconset/
+.DS_Store
