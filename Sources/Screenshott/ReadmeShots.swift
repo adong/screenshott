@@ -1,8 +1,8 @@
 import AppKit
 import ScreenshottCore
 
-/// `open dist/Screenshott.app --args --readme-shots <dir>` drives the area overlay and
-/// the thumbnail without a mouse and writes a cropped PNG of each to `<dir>`, ready for
+/// `open dist/Screenshott.app --args --readme-shots <dir>` drives the area overlay, the
+/// thumbnail and Settings without a mouse and writes a cropped PNG of each to `<dir>`, ready for
 /// docs/images. scripts/readme-shots.sh runs it. A normal launch never gets here.
 ///
 /// Everything happens over a stock macOS wallpaper, so the shots never contain what was
@@ -108,5 +108,18 @@ extension AppDelegate {
             CGRect(x: visible.maxX - 380, y: visible.minY, width: 380, height: 240),
             of: screen, as: "thumbnail.png", in: directory
         )
+
+        // 3. Settings, lifted to the backdrop's level so it shows above it.
+        openSettings()
+        guard let window = settingsWindow else { return }
+        window.level = .floating
+        window.setFrameOrigin(CGPoint(
+            x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2
+        ))
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .milliseconds(800))
+        await ReadmeShots.photograph(window.frame.insetBy(dx: -40, dy: -40), of: screen, as: "settings.png", in: directory)
+        window.level = .normal
+        window.close()
     }
 }

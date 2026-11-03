@@ -3,11 +3,12 @@ import Carbon.HIToolbox
 import ScreenshottCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
-    private var fullScreenHotKeyStatus: OSStatus = noErr
-    private var areaHotKeyStatus: OSStatus = noErr
-    private let delivery = Delivery()
+    private let preferences = Preferences()
+    private lazy var shortcuts = ShortcutCenter(preferences: preferences)
+    private lazy var delivery = Delivery(preferences: preferences)
+    private var settings: SettingsWindowController?
 
     /// Not private, like `runAreaCapture`: ReadmeShots.swift drives them.
     var overlay: OverlayController?
@@ -48,18 +49,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        fullScreenHotKeyStatus = HotKeys.register(keyCode: kVK_ANSI_1, modifiers: cmdKey | shiftKey) {
-            [weak self] in self?.captureFullScreen()
-        }
-        areaHotKeyStatus = HotKeys.register(keyCode: kVK_ANSI_2, modifiers: cmdKey | shiftKey) {
-            [weak self] in self?.captureArea()
-        }
+        shortcuts.start(handlers: [
+            .captureArea: { [weak self] in self?.captureArea() },
+            .captureFullScreen: { [weak self] in self?.captureFullScreen() },
+        ])
         Permissions.requestScreenCaptureIfNeeded()
-        setUpStatusItem()
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.button?.image = Self.menuBarGlyph
+        statusItem.menu = NSMenu()
+        statusItem.menu?.delegate = self
         Log.write("""
             launch \(SigningInfo.version) cdhash=\(SigningInfo.cdhashPrefix) \(Bundle.main.bundlePath) \
-            screenCapture=\(Permissions.hasScreenCapture) hotkey⌘⇧1=\(fullScreenHotKeyStatus) \
-            hotkey⌘⇧2=\(areaHotKeyStatus) displays=\(NSScreen.screens.count)
+            screenCapture=\(Permissions.hasScreenCapture) \(shortcuts.statusLine()) displays=\(NSScreen.screens.count)
             """)
         if let directory = ReadmeShots.directory {
             Task { await runReadmeShots(into: directory) }
@@ -68,19 +69,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Menu bar
 
-    private func setUpStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = Self.menuBarGlyph
-
-        let menu = NSMenu()
-        let area = menu.addItem(withTitle: "Capture Area", action: #selector(captureAreaFromMenu), keyEquivalent: "2")
-        area.keyEquivalentModifierMask = [.command, .shift]
-        area.target = self
-        let full = menu.addItem(withTitle: "Capture Full Screen", action: #selector(captureFullScreenFromMenu), keyEquivalent: "1")
-        full.keyEquivalentModifierMask = [.command, .shift]
-        full.target = self
-
-        for (status, combo) in [(areaHotKeyStatus, "⌘⇧2"), (fullScreenHotKeyStatus, "⌘⇧1")] where status != noErr {
+    /// Built each time it opens, so it always shows the current shortcuts and
+    /// permission state.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        for (action, selector) in [
+            (ShortcutCenter.Action.captureArea, #selector(captureAreaFromMenu)),
+            (.captureFullScreen, #selector(captureFullScreenFromMenu)),
+        ] {
+            let item = menu.addItem(withTitle: action.title, action: selector, keyEquivalent: "")
+            item.target = self
+            if let shortcut = shortcuts.shortcuts[action] { Self.show(shortcut, on: item) }
+        }
+        for action in ShortcutCenter.Action.allCases where shortcuts.taken.contains(action) {
+            let combo = shortcuts.shortcuts[action]?.displayString ?? ""
             menu.addItem(withTitle: "\(combo) is taken by another app (Shottr?)", action: nil, keyEquivalent: "")
                 .isEnabled = false
         }
@@ -92,12 +94,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open Screenshots Folder", action: #selector(openArchive), keyEquivalent: "")
             .target = self
+        menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+            .target = self
         menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "")
             .target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Screenshott", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+    }
 
-        statusItem.menu = menu
+    /// Prints a global shortcut on a menu item, where AppKit can draw it.
+    private static func show(_ shortcut: Shortcut, on item: NSMenuItem) {
+        let key: String
+        if shortcut.isFunctionKey, let number = Int(shortcut.key.dropFirst()),
+           let scalar = UnicodeScalar(NSF1FunctionKey + number - 1) {
+            key = String(Character(scalar))
+        } else if shortcut.key.count == 1 {
+            key = shortcut.key.lowercased()
+        } else {
+            return
+        }
+        var mask: NSEvent.ModifierFlags = []
+        if shortcut.modifiers & UInt32(cmdKey) != 0 { mask.insert(.command) }
+        if shortcut.modifiers & UInt32(optionKey) != 0 { mask.insert(.option) }
+        if shortcut.modifiers & UInt32(controlKey) != 0 { mask.insert(.control) }
+        if shortcut.modifiers & UInt32(shiftKey) != 0 { mask.insert(.shift) }
+        item.keyEquivalent = key
+        item.keyEquivalentModifierMask = mask
     }
 
     // Menu items wait for the menu to fade out so it isn't in the shot.
@@ -119,9 +141,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func grantPermission() { Permissions.showMissingScreenCaptureAlert() }
 
     @objc private func openArchive() {
-        try? FileManager.default.createDirectory(at: Delivery.archiveDirectory, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(Delivery.archiveDirectory)
+        try? FileManager.default.createDirectory(at: preferences.saveDirectory, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(preferences.saveDirectory)
     }
+
+    /// Not private: ReadmeShots.swift photographs it.
+    @objc func openSettings() {
+        if settings == nil { settings = SettingsWindowController(preferences: preferences, shortcuts: shortcuts) }
+        settings?.show()
+    }
+
+    var settingsWindow: NSWindow? { settings?.window }
 
     @objc private func openLog() { NSWorkspace.shared.open(Log.url) }
 

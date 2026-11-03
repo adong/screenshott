@@ -1,5 +1,5 @@
 #!/bin/bash
-# Photograph the area overlay and the thumbnail for the README,
+# Photograph the area overlay, the thumbnail and Settings for the README,
 # driving the real app without a mouse (see Sources/Screenshott/ReadmeShots.swift).
 # Writes PNGs already cropped for docs/images, shot over a stock wallpaper.
 #

@@ -37,6 +37,7 @@
 | 9c | 最低 macOS | 默认：14+（`SCScreenshotManager`、Observation 框架都要 14）。用到 15+ 的 API 再上调。Alan 可推翻 | 2026-11-01 |
 | 8b | 工程构建方式 | 只用 Command Line Tools，不装 Xcode（Alan："xcode cli tool 就够了吧？"，已核实属实）。SwiftPM + `scripts/bundle.sh` 拼出 `Screenshott.app`（Info.plist、LSUIElement、签名）。CLT 已带：Swift 6.4、lldb、sourcekit-lsp（Vim）、swift-format、Swift Testing、notarytool、stapler；系统自带 codesign、iconutil、hdiutil、pkgbuild、sample、leaks、heap、vmmap。缺的 actool / ibtool / Instruments（xctrace）/ XCTest 都用不上或有替代 | 2026-11-01 |
 | 10 | 可扩展：别人带自己的工作流（类 Alfred Workflows，Alan 2026-11-02 提出） | **只开放"截完之后"这一层**（Alan 选的）。截图方式和编辑器工具不开放，以后真要开再单独议（Phase 2）。具体设计见下方"Workflows（#10）"一节 → M7 | 2026-11-02 |
+| 11 | 设置窗口（Alan："I dont see option menu, nor customize shortcuts … where to store files, etc"） | 菜单栏 Settings…（⌘,）。快捷键录制：每个动作一个录制框，Delete 清空、Esc 取消、可一键恢复默认；规则：至少两个修饰键（⇧ 不能单独算）或 F 键，避开 ⌘⇧3/4/5、⌘Space、⌘Tab，不能和另一个动作重复，系统注册失败就提示"被别的 app 占用"并保留旧的。另有：保存位置、保留 Retina 原始分辨率（决策 4b 的开关）、复制到剪贴板、显示缩略图、播放声音、开机启动。自动存档始终开（理由见预设表）。录制器自己写，不用 KeyboardShortcuts 包：它的资源包得另外拷进 .app，漏了 `Bundle.module` 会直接崩 | 2026-11-02 |
 
 ## Workflows（#10，2026-11-02 已定范围）
 
@@ -101,7 +102,7 @@
 |---|---|---|
 | **M0 骨架** ✅ 2026-11-02 验收通过（真改代码的重编 cdhash=f19deb15 启动即 screenCapture=true，授权跨重编保留） | `Package.swift` + `bundle.sh` + 自签名签名；菜单栏 app；屏幕录制授权引导；⌘⇧1 全屏 → 复制 + 存档 | 验证整条管线：编译 → 打包 → 签名 → 授权 → 截图 → 剪贴板，且重新编译后授权不丢 |
 | **M1 冻结遮罩** 🔨 2026-11-02 代码完成、40 个测试全过；外接屏（2560×1440 @1x）实机截图通过，遮罩 138–160 ms 弹出，裁剪对；Retina 屏待测 | 每屏一个遮罩窗口；框选、单击吸附窗口；放大镜、方向键微调；多显示器 + Retina；浮动缩略图。交互默认见"M1 交互默认"一节 | ⌘⇧2 日常区域截图可用 |
-| **M2 预设与热键** | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（KeyboardShortcuts）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
+| **M2 预设与热键** 🔨 2026-11-02 设置窗口 + 热键录制完成（决策 11），预设模型和动作接口待做 | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（自写，见决策 11）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
 | **M3 编辑器** | 对象层文档模型；裁剪、缩放 / 平移；箭头、矩形、文字、马赛克（含实色遮盖）；工程文件存取 | 能标注，能重新打开再改 |
 | **M4 拼图** | 编辑器 / 缩略图上"添加截图"；自动排列 | 多张拼一张 |
 | **M5 长截图** | 实时框选；自动滚（辅助功能权限）+ 手动滚；重叠匹配拼接；固定头尾去重；进度预览；30,000 px 上限 | 通过长截图验收清单 |
@@ -129,6 +130,7 @@
 - **签名证书**：钥匙串里已有自签名证书 "NoteTaker Local Dev"（另一个项目建的）。`bundle.sh` 找不到 "Screenshott Dev" 时会自动用它，TCC 授权照样能跨重编保留。想分开就建一个 "Screenshott Dev"，脚本会优先用。
 - **Shottr 冲突**：本机装了 Shottr，默认占 ⌘⇧1 / ⌘⇧2。测 Screenshott 时先退出 Shottr，或者改掉它的热键。注册失败时菜单里会显示"⌘⇧1 is taken by another app"。
 - **日志**：`~/Library/Logs/Screenshott.log`，每次截图记录 list / grab / encode / copy+save 各段耗时，M6 对标 17 ms 用。
+- **SwiftUI 不能用 `@State`**：这个 SDK 里 `@State`（还有 `@Entry`、`@Previewable`）是宏，宏插件 `SwiftUIMacros` 只随 Xcode 发，Command Line Tools 里没有，编译直接报 "plugin for module 'SwiftUIMacros' not found"。视图自己的状态放进 `ObservableObject` + `@Published`（属性包装器，不是宏）；`@Observable` 也能用，CLT 带了 `ObservationMacros`。
 - **UI 文案**：先用英文（以后做产品要本地化，英文当基准语言）。Alan 可推翻。
 
 ## Shottr 功能盘点 → 我们的分层（草案，待砍）

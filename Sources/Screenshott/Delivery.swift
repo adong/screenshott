@@ -7,16 +7,12 @@ import UniformTypeIdentifiers
 @MainActor
 final class Delivery {
     enum Action {
-        /// Copy, save to the archive folder, show a thumbnail.
+        /// Save to the folder; copy and show a thumbnail unless Settings turned them off.
         case standard
         case copyOnly
         /// A save panel instead of the archive folder.
         case saveAs
     }
-
-    static let archiveDirectory = FileManager.default
-        .urls(for: .picturesDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Screenshott")
 
     private static let shutterSound = NSSound(
         contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif",
@@ -24,11 +20,20 @@ final class Delivery {
     )
 
     let thumbnails = Thumbnails()
+    private let preferences: Preferences
+
+    init(preferences: Preferences) {
+        self.preferences = preferences
+    }
 
     /// `log` starts the log line (what was captured and how long that took); this adds
     /// the encode and delivery timings and the file name.
     func deliver(_ image: CGImage, scale: CGFloat, on screen: NSScreen?, action: Action, log: String) {
-        Self.shutterSound?.play()
+        if preferences.playSound { Self.shutterSound?.play() }
+        var image = image, scale = scale
+        if !preferences.keepRetinaResolution, scale > 1, let logical = ImageScaling.downscaled(image, by: scale) {
+            (image, scale) = (logical, 1)
+        }
         let clock = ContinuousClock()
         let start = clock.now
         guard let png = PNGEncoder.data(from: image, scale: scale) else {
@@ -41,14 +46,14 @@ final class Delivery {
 
         switch action {
         case .standard:
-            copy(png)
+            if preferences.copyToClipboard { copy(png) }
             do {
                 let url = try save(png)
                 Log.write(String(
                     format: "%@ %@ copy+save=%.1fms %@",
                     log, timings, (clock.now - encoded).milliseconds, url.lastPathComponent
                 ))
-                thumbnails.show(image, scale: scale, file: url, on: screen)
+                if preferences.showThumbnail { thumbnails.show(image, scale: scale, file: url, on: screen) }
             } catch {
                 Log.write("\(log) save failed: \(error)")
                 NSSound.beep()
@@ -68,7 +73,7 @@ final class Delivery {
     }
 
     private func save(_ png: Data) throws -> URL {
-        let directory = Self.archiveDirectory
+        let directory = preferences.saveDirectory
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = ScreenshotNaming.uniqueURL(
             in: directory, fileName: ScreenshotNaming.fileName(for: Date())
@@ -81,8 +86,8 @@ final class Delivery {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = ScreenshotNaming.fileName(for: Date())
-        try? FileManager.default.createDirectory(at: Self.archiveDirectory, withIntermediateDirectories: true)
-        panel.directoryURL = Self.archiveDirectory
+        try? FileManager.default.createDirectory(at: preferences.saveDirectory, withIntermediateDirectories: true)
+        panel.directoryURL = preferences.saveDirectory
         NSApp.activate()
         guard panel.runModal() == .OK, let url = panel.url else {
             Log.write("\(log) save-as cancelled")
@@ -91,7 +96,7 @@ final class Delivery {
         do {
             try png.write(to: url)
             Log.write("\(log) saved as \(url.path)")
-            thumbnails.show(image, scale: scale, file: url, on: screen)
+            if preferences.showThumbnail { thumbnails.show(image, scale: scale, file: url, on: screen) }
         } catch {
             Log.write("\(log) save-as failed: \(error)")
             NSSound.beep()
