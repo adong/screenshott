@@ -8,6 +8,8 @@ import ScreenshottCore
 final class Thumbnails {
     private var items: [ThumbnailItem] = []
     private static let perScreenLimit = 5
+    /// Runs an after-capture action on a thumbnail's capture; Delivery sets it.
+    var onAction: ((CaptureAction, CaptureItem) -> Void)?
 
     /// Window numbers to leave out of the next capture.
     var windowNumbers: Set<Int> { Set(items.map(\.panel.windowNumber)) }
@@ -15,7 +17,8 @@ final class Thumbnails {
     func show(_ image: CGImage, scale: CGFloat, file: URL, on screen: NSScreen?) {
         guard let screen = screen ?? NSScreen.main else { return }
         let size = ThumbnailLayout.size(for: PixelSize(width: image.width, height: image.height), scale: scale)
-        let item = ThumbnailItem(image: image, file: file, size: size, visibleFrame: screen.visibleFrame)
+        let item = ThumbnailItem(image: image, scale: scale, file: file, size: size, visibleFrame: screen.visibleFrame)
+        item.onAction = { [weak self] action, capture in self?.onAction?(action, capture) }
         item.onDismiss = { [weak self, weak item] in
             guard let self, let item else { return }
             items.removeAll { $0 === item }
@@ -46,15 +49,18 @@ final class ThumbnailItem {
     let size: CGSize
     let visibleFrame: CGRect
     var onDismiss: (() -> Void)?
+    var onAction: ((CaptureAction, CaptureItem) -> Void)?
 
     private let image: CGImage
+    private let scale: CGFloat
     private var timer: Timer?
     private var placed = false
     private var dismissed = false
     private static let lifetime: TimeInterval = 6
 
-    init(image: CGImage, file: URL, size: CGSize, visibleFrame: CGRect) {
+    init(image: CGImage, scale: CGFloat, file: URL, size: CGSize, visibleFrame: CGRect) {
         self.image = image
+        self.scale = scale
         self.file = file
         self.size = size
         self.visibleFrame = visibleFrame
@@ -138,6 +144,7 @@ final class ThumbnailItem {
             ("Copy", #selector(ThumbnailMenuTarget.copyImage)),
             ("Show in Finder", #selector(ThumbnailMenuTarget.reveal)),
             ("Open", #selector(ThumbnailMenuTarget.open)),
+            ("Open in Editor", #selector(ThumbnailMenuTarget.openInEditor)),
             ("Move to Trash", #selector(ThumbnailMenuTarget.trash)),
         ] {
             menu.addItem(withTitle: title, action: action, keyEquivalent: "").target = menuTarget
@@ -161,6 +168,12 @@ final class ThumbnailItem {
 
     fileprivate func openFile() { open() }
 
+    /// Hands the capture to an after-capture action, then gets out of the way.
+    fileprivate func run(_ action: CaptureAction) {
+        onAction?(action, CaptureItem(image: image, scale: scale, screen: nil, preset: nil, file: file))
+        dismiss()
+    }
+
     fileprivate func trashFile() {
         do {
             try FileManager.default.trashItem(at: file, resultingItemURL: nil)
@@ -181,6 +194,7 @@ private final class ThumbnailMenuTarget: NSObject {
     @objc func copyImage() { item?.copyFile() }
     @objc func reveal() { item?.revealFile() }
     @objc func open() { item?.openFile() }
+    @objc func openInEditor() { item?.run(.openEditor) }
     @objc func trash() { item?.trashFile() }
 }
 

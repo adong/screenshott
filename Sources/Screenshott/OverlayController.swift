@@ -11,7 +11,12 @@ final class OverlayController {
         let scale: CGFloat
         let screen: NSScreen
         let action: Delivery.Action
+        /// What was captured, in Cocoa global points — remembered for Repeat Last Area.
+        let area: CGRect
     }
+
+    /// What Enter and a double-click run: the preset's action.
+    let enterAction: Delivery.Action
 
     private var panels: [OverlayPanel] = []
     private var views: [OverlayView] = []
@@ -21,7 +26,11 @@ final class OverlayController {
     /// NSEvent.mouseLocation so arrow-key warps add up even before the system catches up.
     private var pointer = NSEvent.mouseLocation
 
-    init(capture: FrozenCapture, windows: [CGRect], onFinish: @escaping (Result?) -> Void) {
+    init(
+        capture: FrozenCapture, windows: [CGRect], enterAction: Delivery.Action = .standard,
+        onFinish: @escaping (Result?) -> Void
+    ) {
+        self.enterAction = enterAction
         self.onFinish = onFinish
         for display in capture.displays {
             let panel = OverlayPanel(
@@ -91,7 +100,7 @@ final class OverlayController {
             finish(nil)
             return true
         case kVK_Return, kVK_ANSI_KeypadEnter:
-            confirm(.standard)
+            confirm(enterAction)
             return true
         case kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow:
             arrow(Int(event.keyCode), flags: flags)
@@ -105,8 +114,7 @@ final class OverlayController {
         } else if flags == .command, key == "s" {
             confirm(.saveAs)
         } else if flags.isEmpty, key == "e" {
-            Log.write("overlay: E (editor) arrives in M3")
-            NSSound.beep()
+            confirm(.openEditor)
         } else if flags.isEmpty, key == "p" {
             Log.write("overlay: P (pin) arrives in P1")
             NSSound.beep()
@@ -125,7 +133,9 @@ final class OverlayController {
             NSSound.beep()
             return
         }
-        finish(Result(image: image, scale: view.geometry.scale, screen: view.display.screen, action: action))
+        let origin = view.display.screen.frame.origin
+        let area = view.geometry.viewRect(for: rect).offsetBy(dx: origin.x, dy: origin.y)
+        finish(Result(image: image, scale: view.geometry.scale, screen: view.display.screen, action: action, area: area))
     }
 
     /// For the README shots: a selection in the middle of the display under the pointer,

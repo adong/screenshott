@@ -102,7 +102,7 @@
 |---|---|---|
 | **M0 骨架** ✅ 2026-11-02 验收通过（真改代码的重编 cdhash=f19deb15 启动即 screenCapture=true，授权跨重编保留） | `Package.swift` + `bundle.sh` + 自签名签名；菜单栏 app；屏幕录制授权引导；⌘⇧1 全屏 → 复制 + 存档 | 验证整条管线：编译 → 打包 → 签名 → 授权 → 截图 → 剪贴板，且重新编译后授权不丢 |
 | **M1 冻结遮罩** 🔨 2026-11-02 代码完成、40 个测试全过；外接屏（2560×1440 @1x）实机截图通过，遮罩 138–160 ms 弹出，裁剪对；Retina 屏待测 | 每屏一个遮罩窗口；框选、单击吸附窗口；放大镜、方向键微调；多显示器 + Retina；浮动缩略图。交互默认见"M1 交互默认"一节 | ⌘⇧2 日常区域截图可用 |
-| **M2 预设与热键** 🔨 2026-11-02 设置窗口 + 热键录制完成（决策 11），预设模型和动作接口待做 | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（自写，见决策 11）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
+| **M2 预设与热键** 🔨 2026-11-03 代码完成、66 个测试全过，待实机试（延时、重复上次区域）。全屏进编辑器 / 长截图等 M3 / M5 合并。默认见"M2 预设默认"一节 | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（自写，见决策 11）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
 | **M3 编辑器** | 对象层文档模型；裁剪、缩放 / 平移；箭头、矩形、文字、马赛克（含实色遮盖）；工程文件存取 | 能标注，能重新打开再改 |
 | **M4 拼图** | 编辑器 / 缩略图上"添加截图"；自动排列 | 多张拼一张 |
 | **M5 长截图** | 实时框选；自动滚（辅助功能权限）+ 手动滚；重叠匹配拼接；固定头尾去重；进度预览；30,000 px 上限 | 通过长截图验收清单 |
@@ -119,14 +119,26 @@
 - **焦点**：遮罩出现时 Screenshott 会拿走焦点（只有前台 app 能把鼠标指针换成十字），关掉遮罩后把焦点还给原来的 app。
 - **缩略图**：截完出现在那块屏右下角，6 秒后自动消失（鼠标停在上面时不消失），多张往上叠，每屏最多 5 张。单击用预览打开（M3 之后改成进编辑器），拖出去 = 拖文件，右键有拷贝 / 在 Finder 中显示 / 打开 / 移到废纸篓。⌘⇧1 全屏截图也会出缩略图。自己的缩略图不会被截进下一张。
 
+## M2 预设默认（2026-11-03，Alan 可推翻）
+
+- **预设是固定的 7 个**（预设表），每个在设置里能改热键和 Enter 后的动作；画面和选择方式不开放改（v1 不做自定义预设）。"点窗口"这种选择已包含在"区域"的单击吸附里，所以模型里没有单独的窗口模式。
+- **Enter 后的动作**可选：复制 + 存档 + 缩略图（默认）/ 只复制 / 另存为 / 进编辑器；M7 起加上已装的 workflow。长截图的动作暂不可选（M5 拼完自己出缩略图）。遮罩里 ⌘C / ⌘S / E 照旧覆盖 Enter 的动作。
+- **延时**是一个预设，倒计时 3 / 5 / 10 s 在设置里选（默认 3 s）。倒计时显示在鼠标所在屏中央；点它或再按一次热键 = 取消；数完进冻结遮罩，和"区域"一样操作。
+- **重复上次区域**：记住上一次任何区域截图（冻结、实时、延时都算）的位置，按屏幕坐标存（换了显示器排列也照这个坐标找屏）。实时截那块屏，不弹遮罩。还没截过区域时改为打开区域遮罩；那块区域已不在任何屏上时提示并响一声。
+- **实时区域**：每屏一层透明遮罩，Screenshott 不抢焦点，被截的 app 保持激活的样子；代价是鼠标没法变成十字（只有前台 app 能换指针），用穿过鼠标的虚线代替。拖完松手立即截；单击 = 鼠标下的窗口；Esc 或右键取消；再按一次热键也取消。
+- **全屏进编辑器（⌥⌘⇧1）、长截图（⌥⌘⇧2）**：热键、菜单、设置都在，M3 / M5 合并前按了只提示"arrives with M3 / M5"并响一声。入口是 `AppDelegate.openInEditor(_:scale:)` 和 `runScrollingCapture()`，桩在 `PendingFeatures.swift`。
+- **动作接口**：`Delivery.run(_:on:)` 是所有截后动作的统一入口（复制、存档、另存为、缩略图、编辑器），遮罩按键、缩略图菜单都走它；`Delivery.deliver(...)` 签名不变。#10 的 workflow 是又一种动作。
+- **设置窗口分页**：预设 / 通用（7 个预设加其他选项一页放不下笔记本屏幕）。
+- **存储**：快捷键仍是 `shortcut.<预设名>`（`captureArea`、`captureFullScreen` 沿用，旧设置不丢）；动作和倒计时是 `preset.<预设名>.action` / `.delay`；上次区域是 `lastArea`。
+
 ## 开发备注
 
 - **构建**：`scripts/bundle.sh [debug|release]` → `dist/Screenshott.app`。如果 app 正在运行，脚本会先退出它、编完再重开（否则 `open` 只会激活旧进程，测的还是旧代码）。
-- **测试**：`scripts/test.sh`（Swift Testing，M1 后 40 个，2026-11-02 全过）。只装 Command Line Tools 时，swift-build 有时不加载 `host/plugins/testing/` 下的宏插件，所有 `@Test` 都会报 "plugin for module 'TestingMacros' not found"，脚本会显式传 `-plugin-path`。
+- **测试**：`scripts/test.sh`（Swift Testing，M2 后 66 个，2026-11-03 全过）。只装 Command Line Tools 时，swift-build 有时不加载 `host/plugins/testing/` 下的宏插件，所有 `@Test` 都会报 "plugin for module 'TestingMacros' not found"，脚本会显式传 `-plugin-path`。
 - **图标**：`scripts/make-icon.sh` 用 `Tools/MakeIcon` 里的 CoreGraphics 矢量代码按每个尺寸单独绘制，再用 `iconutil` 打包成 `Support/AppIcon.icns`（.icns 提交进 git，中间 PNG 不提交）。菜单栏图形在 `AppDelegate.menuBarGlyph` 里用代码画，是 template 图，系统按深浅色菜单栏自动着色。
 - **启动日志带 CDHash**：`launch 0.1.0 (1) cdhash=xxxxxxxx …`。缓存命中的构建会重新签同样的字节，CDHash 不变；只有 CDHash 变了还不用重新授权，才能证明授权真的跨重编保留。
 - **Claude 会话的沙盒里编不了**：SwiftPM 往 `/var/folders/hs/…/T`（临时文件、原子写）和 `/var/folders/hs/…/C`（clang 模块缓存）写东西，沙盒拒绝；另外 SwiftPM 自己的 `sandbox-exec` 不能嵌套，需要加 `--disable-sandbox`。home-guard 又禁止在沙盒外跑仓库脚本。所以目前 `bundle.sh` 由 Alan 在自己的终端跑。想让 Claude 自己编：在 `sandbox.filesystem.allowWrite` 里加 `/private/var/folders/hs/967572j15p385840s129d2r40000gn`，然后用 `swift build --disable-sandbox`。
-- **沙盒里的替代办法（2026-11-02 起，home-guard 连沙盒外的 `swift build` / `swift test` 也拒了）**：不走 SwiftPM，直接用 `swiftc` 编：先把 `Sources/ScreenshottCore` 编成静态库加模块（`-emit-library -static -emit-module`，`-module-cache-path` 指到 `$TMPDIR`），再编 app 或测试去链它；测试多带 `-enable-testing`、`-F …/CommandLineTools/Library/Developer/Frameworks -framework Testing`、宏插件的 `-plugin-path`，再加一个调用 `Testing.__swiftPMEntryPoint()` 的 `@main` 文件。这样能编译、能跑测试，但出不了签好名的 .app，打包仍然是 Alan 跑 `bundle.sh`。
+- **沙盒里的替代办法（2026-11-02 起，home-guard 连沙盒外的 `swift build` / `swift test` 也拒了）**：不走 SwiftPM，直接用 `swiftc` 编：先把 `Sources/ScreenshottCore` 编成静态库加模块（`-emit-library -static -emit-module`，`-module-cache-path` 指到 `$TMPDIR`），再编 app 或测试去链它；测试多带 `-enable-testing`、`-F …/CommandLineTools/Library/Developer/Frameworks -framework Testing`、宏插件的 `-plugin-path`，再加一个调用 `Testing.__swiftPMEntryPoint()` 的 `@main` 文件；运行时 Testing.framework 还要 `lib_TestingInterop.dylib`，在 `…/CommandLineTools/Library/Developer/usr/lib`，链接时加这个 rpath。这样能编译、能跑测试，但出不了签好名的 .app，打包仍然是 Alan 跑 `bundle.sh`。
 - **签名证书**：钥匙串里已有自签名证书 "NoteTaker Local Dev"（另一个项目建的）。`bundle.sh` 找不到 "Screenshott Dev" 时会自动用它，TCC 授权照样能跨重编保留。想分开就建一个 "Screenshott Dev"，脚本会优先用。
 - **Shottr 冲突**：本机装了 Shottr，默认占 ⌘⇧1 / ⌘⇧2。测 Screenshott 时先退出 Shottr，或者改掉它的热键。注册失败时菜单里会显示"⌘⇧1 is taken by another app"。
 - **日志**：`~/Library/Logs/Screenshott.log`，每次截图记录 list / grab / encode / copy+save 各段耗时，M6 对标 17 ms 用。

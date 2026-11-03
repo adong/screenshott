@@ -119,8 +119,8 @@ final class OverlayView: NSView {
     override func mouseDown(with event: NSEvent) {
         controller?.pressBegan(in: self)
         let edge = geometry.edge(at: localPoint(event))
-        if event.clickCount == 2, model.hit(edge, tolerance: tolerance) == .inside {
-            controller?.confirm(.standard)
+        if event.clickCount == 2, model.hit(edge, tolerance: tolerance) == .inside, let controller {
+            controller.confirm(controller.enterAction)
             return
         }
         pressHit = model.begin(at: edge, tolerance: tolerance)
