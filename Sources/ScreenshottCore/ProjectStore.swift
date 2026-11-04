@@ -55,6 +55,9 @@ public struct ProjectStore: Sendable {
             && !kept.contains(url.lastPathComponent) {
             try files.removeItem(at: url)
         }
+        // A project opened from an older build is written in this build's format now.
+        var document = document
+        document.version = max(document.version, EditorDocument.formatVersion)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(document).write(to: folder.appendingPathComponent("project.json"), options: .atomic)

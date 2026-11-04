@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import ScreenshottCore
 
 /// One display's overlay for a scrolling capture. Unlike the area overlay the screen
@@ -185,7 +186,22 @@ final class ScrollSelectionView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if Int(event.keyCode) == kVK_Space {
+            if !event.isARepeat { holdToMove(true) }
+            return
+        }
         if controller?.handleKey(event) != true { super.keyDown(with: event) }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if Int(event.keyCode) == kVK_Space { holdToMove(false) } else { super.keyUp(with: event) }
+    }
+
+    /// Hold Space while drawing or resizing to move the rectangle instead, as in ⌘⇧4.
+    private func holdToMove(_ held: Bool) {
+        model.holdToMove(held)
+        updateCursor()
+        refresh()
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {

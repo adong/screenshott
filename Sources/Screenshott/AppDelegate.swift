@@ -303,7 +303,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             let controller = OverlayController(
                 capture: capture, windows: windows, enterAction: enterAction,
-                barItems: OverlayActionBar.items(workflows: workflows.installed)
+                barItems: OverlayActionBar.items(workflows: workflows.installed),
+                showsMagnifier: preferences.showMagnifier
             ) { [weak self] result in
                 self?.overlayFinished(result)
             }

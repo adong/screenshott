@@ -27,6 +27,10 @@ final class Preferences: ObservableObject {
     @Published var keepRetinaResolution: Bool {
         didSet { defaults.set(keepRetinaResolution, forKey: Key.keepRetinaResolution) }
     }
+    /// The area overlay's loupe. The coordinates and color beside the pointer stay either way.
+    @Published var showMagnifier: Bool {
+        didSet { defaults.set(showMagnifier, forKey: Key.showMagnifier) }
+    }
 
     private enum Key {
         static let saveDirectory = "saveDirectory"
@@ -34,6 +38,7 @@ final class Preferences: ObservableObject {
         static let showThumbnail = "showThumbnail"
         static let playSound = "playSound"
         static let keepRetinaResolution = "keepRetinaResolution"
+        static let showMagnifier = "showMagnifier"
         static let shortcutPrefix = "shortcut."
     }
 
@@ -41,6 +46,7 @@ final class Preferences: ObservableObject {
         self.defaults = defaults
         defaults.register(defaults: [
             Key.copyToClipboard: true, Key.showThumbnail: true, Key.playSound: true, Key.keepRetinaResolution: true,
+            Key.showMagnifier: true,
         ])
         saveDirectory = defaults.string(forKey: Key.saveDirectory).map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? Self.defaultSaveDirectory
@@ -48,6 +54,7 @@ final class Preferences: ObservableObject {
         showThumbnail = defaults.bool(forKey: Key.showThumbnail)
         playSound = defaults.bool(forKey: Key.playSound)
         keepRetinaResolution = defaults.bool(forKey: Key.keepRetinaResolution)
+        showMagnifier = defaults.bool(forKey: Key.showMagnifier)
     }
 
     // MARK: - Shortcuts

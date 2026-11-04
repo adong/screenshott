@@ -196,6 +196,13 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Area Overlay") {
+                Toggle(isOn: $preferences.showMagnifier) {
+                    Text("Show magnifier")
+                    Text("The coordinates and color stay next to the pointer either way.")
+                }
+            }
+
             Section("After Capture") {
                 Toggle("Copy to clipboard", isOn: $preferences.copyToClipboard)
                 Toggle("Show thumbnail", isOn: $preferences.showThumbnail)

@@ -203,6 +203,13 @@
 - **不同缩放的屏**：2x 画布里加一张 1x 截图会放大到同样的显示大小（反之缩小），整张画布只有一个缩放倍数。
 - **自由拖放**：P1（决策 3a）。
 
+## 2026-11-04 Alan 追加（v0.1.0 之后）
+
+- **按住空格移动选区**（Alan："we dont have a vital features that hold SPACE to move the screen area"）：画选区或拖把手时按住空格 = 整个框按当前大小跟着鼠标走，松开空格接着画 / 拉（和系统 ⌘⇧4 一样）。在 `SelectionModel.holdToMove`，冻结遮罩和长截图遮罩都有。没在拖时按空格不做事。
+- **形状**（Alan："lack of shapes, such as circle, oval, triangle, rectangle, hold SHIFT…"）：编辑器加椭圆（O）和三角形（D，Δ）。⇧ = 正圆 / 正方形 / 等边三角形。三角形顶点在框的上边中点，圆角连接。工程格式升到 2（旧版 0.1.0 打不开含新形状的工程；新版保存时写当前版本）。
+- **坐标贴着光标**（Alan："show the coordination close to the cursor plus should have option to opt out without magnifier glass"）：光标旁的小标签显示像素坐标、色块和 hex；放大镜下方不再有坐标。设置 → 通用 → "Show magnifier"可关放大镜，标签保留。标签放在放大镜的另一侧（`MagnifierLayout.tagFrame`），永不重叠。
+- **取色**（Alan："also use as a color picker, Show hex value when select and press CMD + C to copy the hex value"）：hex 按 sRGB（截图是显示器色彩空间，粘到设计工具按 sRGB 理解）。**没有选区时 ⌘C = 复制 hex 并关遮罩**；有选区时 ⌘C 照旧复制图片。代价：以前"悬停窗口 + ⌘C"复制那个窗口，现在要先单击吸附窗口再 ⌘C。
+
 ## 开发备注
 
 - **构建**：`scripts/bundle.sh [debug|release]` → `dist/Screenshott.app`。如果 app 正在运行，脚本会先退出它、编完再重开（否则 `open` 只会激活旧进程，测的还是旧代码）。

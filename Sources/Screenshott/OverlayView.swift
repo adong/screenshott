@@ -1,8 +1,10 @@
 import AppKit
+import Carbon.HIToolbox
 import ScreenshottCore
 
 /// One display's frozen overlay: the captured frame, dimmed outside the selection (or
-/// the window under the pointer), with a size label and a pixel loupe. Layer-hosting
+/// the window under the pointer), with a size label, a pixel loupe, and the pixel's
+/// coordinates and color right beside the pointer. Layer-hosting
 /// and non-flipped, so layer frames are view points with a bottom-left origin.
 @MainActor
 final class OverlayView: NSView {
@@ -26,11 +28,17 @@ final class OverlayView: NSView {
     private let handlesLayer = CAShapeLayer()
     private let sizeLabel: Label
     private let loupe: Loupe
+    private let cursorTag: CursorTag
     private let actionBar: OverlayActionBar
 
     var hasSelection: Bool { model.selection != nil }
     /// What Enter captures: the selection, else the window under the pointer.
     var target: PixelRect? { model.selection ?? hover }
+
+    /// The color picker: the pixel under the pointer, when it is on this display.
+    var colorUnderPointer: PixelColor? {
+        pointer.flatMap { PixelColor.at(geometry.pixel(at: $0), in: display.image) }
+    }
 
     /// Handle grab distance and click slop, in this display's pixels.
     private var tolerance: Int { Int((6 * geometry.scale).rounded()) }
@@ -42,7 +50,8 @@ final class OverlayView: NSView {
         self.controller = controller
         model = SelectionModel(bounds: geometry.pixelSize, clickSlop: Int((3 * geometry.scale).rounded()))
         sizeLabel = Label(scale: geometry.scale)
-        loupe = Loupe(scale: geometry.scale)
+        loupe = Loupe()
+        cursorTag = CursorTag(scale: geometry.scale)
         actionBar = OverlayActionBar(items: controller.barItems, scale: geometry.scale)
         super.init(frame: CGRect(origin: .zero, size: geometry.pointSize))
 
@@ -62,7 +71,9 @@ final class OverlayView: NSView {
         handlesLayer.fillColor = NSColor.white.cgColor
         handlesLayer.strokeColor = NSColor.black.withAlphaComponent(0.4).cgColor
         handlesLayer.lineWidth = 0.5
-        for sublayer in [imageLayer, dimLayer, borderLayer, handlesLayer, sizeLabel.layer, actionBar.layer, loupe.layer] {
+        for sublayer in [
+            imageLayer, dimLayer, borderLayer, handlesLayer, sizeLabel.layer, actionBar.layer, loupe.layer, cursorTag.layer,
+        ] {
             layer?.addSublayer(sublayer)
         }
         refresh()
@@ -153,7 +164,22 @@ final class OverlayView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if Int(event.keyCode) == kVK_Space {
+            if !event.isARepeat { holdToMove(true) }
+            return
+        }
         if controller?.handleKey(event) != true { super.keyDown(with: event) }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if Int(event.keyCode) == kVK_Space { holdToMove(false) } else { super.keyUp(with: event) }
+    }
+
+    /// Hold Space while drawing or resizing to move the rectangle instead, as in ⌘⇧4.
+    private func holdToMove(_ held: Bool) {
+        model.holdToMove(held)
+        updateCursor()
+        refresh()
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -231,11 +257,24 @@ final class OverlayView: NSView {
         actionBar.hover(at: pointer)
 
         if let pointer, !model.isMoving {
-            loupe.update(image: display.image, center: geometry.pixel(at: pointer), bounds: geometry.pixelSize)
-            loupe.layer.frame = MagnifierLayout.frame(size: loupe.size, cursor: pointer, in: bounds.size)
-            loupe.layer.isHidden = false
+            let pixel = geometry.pixel(at: pointer)
+            var loupeFrame: CGRect?
+            if controller?.showsMagnifier ?? true {
+                loupe.update(image: display.image, center: pixel, bounds: geometry.pixelSize)
+                loupeFrame = MagnifierLayout.frame(size: loupe.size, cursor: pointer, in: bounds.size)
+                loupe.layer.frame = loupeFrame ?? .zero
+                loupe.layer.isHidden = false
+            } else {
+                loupe.layer.isHidden = true
+            }
+            cursorTag.set(pixel, color: PixelColor.at(pixel, in: display.image))
+            cursorTag.layer.frame = MagnifierLayout.tagFrame(
+                size: cursorTag.layer.bounds.size, cursor: pointer, in: bounds.size, loupe: loupeFrame
+            )
+            cursorTag.layer.isHidden = false
         } else {
             loupe.layer.isHidden = true
+            cursorTag.layer.isHidden = true
         }
     }
 
@@ -292,24 +331,20 @@ private final class Label {
 }
 
 /// The magnifier: `MagnifierLayout.side` pixels square, each drawn as a sharp cell, the
-/// pixel under the pointer outlined, its coordinates underneath.
+/// pixel under the pointer outlined. Its coordinates and color are on the CursorTag.
 @MainActor
 private final class Loupe {
     let layer = CALayer()
     let size: CGSize
     private let zoom = CALayer()
     private let marker = CAShapeLayer()
-    private let label: Label
     private static let cell: CGFloat = 9
 
-    init(scale: CGFloat) {
+    init() {
         let side = CGFloat(MagnifierLayout.side) * Self.cell
-        label = Label(scale: scale)
-        label.set("0000, 0000")
-        let labelHeight = label.layer.bounds.height
-        size = CGSize(width: side, height: side + 4 + labelHeight)
+        size = CGSize(width: side, height: side)
 
-        zoom.frame = CGRect(x: 0, y: labelHeight + 4, width: side, height: side)
+        zoom.frame = CGRect(x: 0, y: 0, width: side, height: side)
         zoom.magnificationFilter = .nearest
         zoom.contentsGravity = .resize
         zoom.backgroundColor = NSColor.black.cgColor
@@ -326,7 +361,6 @@ private final class Loupe {
         marker.shadowOffset = .zero
         zoom.addSublayer(marker)
         layer.addSublayer(zoom)
-        layer.addSublayer(label.layer)
     }
 
     func update(image: CGImage, center: PixelPoint, bounds: PixelSize) {
@@ -339,7 +373,44 @@ private final class Loupe {
             y: zoom.bounds.height - CGFloat(mark.y + 1) * cellHeight,
             width: cellWidth, height: cellHeight
         ), transform: nil)
-        label.set("\(center.x), \(center.y)")
-        label.place(at: CGPoint(x: (size.width - label.layer.bounds.width) / 2, y: 0))
+    }
+}
+
+/// Right beside the pointer: a swatch of the pixel's color, its coordinates and its
+/// hex, which ⌘C copies while nothing is selected.
+@MainActor
+private final class CursorTag {
+    let layer = CALayer()
+    private let swatch = CALayer()
+    private let text = CATextLayer()
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+    private static let swatchSide: CGFloat = 10
+
+    init(scale: CGFloat) {
+        layer.backgroundColor = NSColor.black.withAlphaComponent(0.72).cgColor
+        layer.cornerRadius = 4
+        swatch.borderColor = NSColor.white.withAlphaComponent(0.8).cgColor
+        swatch.borderWidth = 1
+        swatch.cornerRadius = 2
+        text.font = Self.font
+        text.fontSize = Self.font.pointSize
+        text.foregroundColor = NSColor.white.cgColor
+        text.contentsScale = scale
+        layer.addSublayer(swatch)
+        layer.addSublayer(text)
+    }
+
+    func set(_ pixel: PixelPoint, color: PixelColor?) {
+        let string = "\(pixel.x), \(pixel.y)" + (color.map { "  \($0.hex)" } ?? "")
+        let size = NSAttributedString(string: string, attributes: [.font: Self.font]).size()
+        let width = ceil(size.width), height = ceil(size.height)
+        let side = Self.swatchSide
+        swatch.isHidden = color == nil
+        swatch.backgroundColor = color?.cgColor
+        swatch.frame = CGRect(x: 6, y: (height + 6 - side) / 2, width: side, height: side)
+        let textX: CGFloat = color == nil ? 6 : 6 + side + 5
+        text.string = string
+        text.frame = CGRect(x: textX, y: 3, width: width, height: height)
+        layer.bounds.size = CGSize(width: textX + width + 6, height: height + 6)
     }
 }

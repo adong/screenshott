@@ -19,6 +19,9 @@ final class OverlayController {
     let enterAction: Delivery.Action
     /// The action bar under the selection; its workflows also answer to 1–9.
     let barItems: [OverlayActionBar.Item]
+    /// Off in Settings: no loupe, only the coordinates and color beside the pointer.
+    /// Settable for the README shots, which show both.
+    var showsMagnifier: Bool
 
     private var panels: [OverlayPanel] = []
     private var views: [OverlayView] = []
@@ -30,10 +33,11 @@ final class OverlayController {
 
     init(
         capture: FrozenCapture, windows: [CGRect], enterAction: Delivery.Action = .standard,
-        barItems: [OverlayActionBar.Item] = [], onFinish: @escaping (Result?) -> Void
+        barItems: [OverlayActionBar.Item] = [], showsMagnifier: Bool = true, onFinish: @escaping (Result?) -> Void
     ) {
         self.enterAction = enterAction
         self.barItems = barItems
+        self.showsMagnifier = showsMagnifier
         self.onFinish = onFinish
         for display in capture.displays {
             let panel = OverlayPanel(
@@ -113,7 +117,12 @@ final class OverlayController {
         }
         let key = event.charactersIgnoringModifiers?.lowercased()
         if flags == .command, key == "c" {
-            confirm(.copyOnly)
+            // Nothing selected yet: the color picker. A selection: the image.
+            if selectionView == nil, let color = viewUnderPointer?.colorUnderPointer {
+                copy(color)
+            } else {
+                confirm(.copyOnly)
+            }
         } else if flags == .command, key == "s" {
             confirm(.saveAs)
         } else if flags.isEmpty, key == "e" {
@@ -142,6 +151,16 @@ final class OverlayController {
         let origin = view.display.screen.frame.origin
         let area = view.geometry.viewRect(for: rect).offsetBy(dx: origin.x, dy: origin.y)
         finish(Result(image: image, scale: view.geometry.scale, screen: view.display.screen, action: action, area: area))
+    }
+
+    /// The color picker's ⌘C: the pixel's hex on the clipboard, then the overlay closes
+    /// like any other copy.
+    private func copy(_ color: PixelColor) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(color.hex, forType: .string)
+        Log.write("overlay: copied color \(color.hex)")
+        finish(nil)
+        Toast.show("Copied \(color.hex)")
     }
 
     /// For the README shots: a selection in the middle of the display under the pointer,

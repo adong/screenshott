@@ -119,7 +119,7 @@ public enum CanvasRenderer {
         return Pixelation.mosaic(under, block: Pixelation.blockSize(scale: document.scale))
     }
 
-    /// An arrow, rectangle or text annotation.
+    /// An arrow, shape or text annotation.
     public static func drawMarkup(_ annotation: Annotation, in context: CGContext) {
         context.saveGState()
         defer { context.restoreGState() }
@@ -134,6 +134,18 @@ public enum CanvasRenderer {
             context.setLineWidth(annotation.size)
             context.setLineJoin(.miter)
             context.stroke(annotation.rect)
+        case .ellipse:
+            context.setStrokeColor(color)
+            context.setLineWidth(annotation.size)
+            context.strokeEllipse(in: annotation.rect)
+        case .triangle:
+            context.setStrokeColor(color)
+            context.setLineWidth(annotation.size)
+            // Round, so the sharp apex can't poke a miter out past `bounds`.
+            context.setLineJoin(.round)
+            context.addLines(between: annotation.trianglePoints)
+            context.closePath()
+            context.strokePath()
         case .text:
             TextLayout.draw(annotation.text, fontSize: annotation.size, color: color, at: annotation.start, in: context)
         case .pixelate:

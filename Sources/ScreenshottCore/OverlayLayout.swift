@@ -29,6 +29,30 @@ public enum MagnifierLayout {
             width: size.width, height: size.height
         )
     }
+
+    /// Where the coordinates-and-color tag goes: just beside the cursor, above it when
+    /// the loupe is below and below it when the loupe is above, so neither covers the
+    /// other. Where that side has no room, it sits level with the cursor on the side
+    /// away from the loupe. `loupe` is nil when the magnifier is off. View points,
+    /// bottom-left origin.
+    public static func tagFrame(
+        size: CGSize, cursor: CGPoint, in bounds: CGSize, loupe: CGRect?, gap: CGFloat = 12
+    ) -> CGRect {
+        let loupeBelow = loupe.map { $0.midY < cursor.y } ?? true
+        var x = cursor.x + gap
+        if x + size.width > bounds.width { x = cursor.x - gap - size.width }
+        var y = loupeBelow ? cursor.y + gap : cursor.y - gap - size.height
+        if y < 0 || y + size.height > bounds.height {
+            let loupeRight = loupe.map { $0.midX > cursor.x } ?? true
+            x = loupeRight ? cursor.x - gap - size.width : cursor.x + gap
+            y = cursor.y - size.height / 2
+        }
+        return CGRect(
+            x: clamp(x, 0, max(bounds.width - size.width, 0)),
+            y: clamp(y, 0, max(bounds.height - size.height, 0)),
+            width: size.width, height: size.height
+        )
+    }
 }
 
 public enum ThumbnailLayout {

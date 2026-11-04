@@ -104,6 +104,16 @@ extension AppDelegate {
             of: screen, as: "overlay.png", in: directory
         )
 
+        // 1b. The same corner with the magnifier off: only the coordinates-and-color tag
+        // beside the pointer, which sits on the selection's bottom-right corner.
+        overlay.showsMagnifier = false
+        _ = overlay.stageForReadme()
+        try? await Task.sleep(for: .milliseconds(300))
+        await ReadmeShots.photograph(
+            CGRect(x: hole.maxX - 200, y: hole.minY - 80, width: 400, height: 160),
+            of: screen, as: "cursor-tag.png", in: directory
+        )
+
         // 2. Enter: copy + archive + the floating thumbnail in the bottom-right corner.
         overlay.confirm(.standard)
         try? await Task.sleep(for: .milliseconds(1200))
@@ -118,7 +128,9 @@ extension AppDelegate {
         openSettings()
         guard let window = settingsWindow, let model = settingsModel else { return }
         window.level = .floating
-        for (tab, name) in [(SettingsModel.Tab.presets, "settings.png"), (.workflows, "workflows.png")] {
+        for (tab, name) in [
+            (SettingsModel.Tab.presets, "settings.png"), (.general, "general.png"), (.workflows, "workflows.png"),
+        ] {
             model.tab = tab
             try? await Task.sleep(for: .milliseconds(500))
             window.setFrameOrigin(CGPoint(

@@ -48,3 +48,28 @@ private let image = PixelSize(width: 2560, height: 1440)
         CGRect(x: 1396, y: 233, width: 100, height: 80),
     ])
 }
+
+@Test func tagSitsJustAboveRightOfTheCursorWhenTheLoupeIsBelow() {
+    let tag = CGSize(width: 130, height: 20), screen = CGSize(width: 1512, height: 982)
+    let cursor = CGPoint(x: 500, y: 500)
+    let loupe = MagnifierLayout.frame(size: CGSize(width: 135, height: 135), cursor: cursor, in: screen)
+    let frame = MagnifierLayout.tagFrame(size: tag, cursor: cursor, in: screen, loupe: loupe)
+    #expect(frame == CGRect(x: 512, y: 512, width: 130, height: 20))
+    #expect(!frame.intersects(loupe))
+    // With the magnifier off it's in the same place.
+    #expect(MagnifierLayout.tagFrame(size: tag, cursor: cursor, in: screen, loupe: nil) == frame)
+}
+
+@Test func tagNeverCoversTheLoupeNearTheEdges() {
+    let tag = CGSize(width: 130, height: 20), screen = CGSize(width: 1512, height: 982)
+    let loupeSize = CGSize(width: 135, height: 135)
+    for cursor in [
+        CGPoint(x: 1500, y: 20), CGPoint(x: 5, y: 975), CGPoint(x: 1505, y: 975), CGPoint(x: 5, y: 5),
+        CGPoint(x: 756, y: 975), CGPoint(x: 756, y: 3),
+    ] {
+        let loupe = MagnifierLayout.frame(size: loupeSize, cursor: cursor, in: screen)
+        let frame = MagnifierLayout.tagFrame(size: tag, cursor: cursor, in: screen, loupe: loupe)
+        #expect(!frame.intersects(loupe), "cursor \(cursor)")
+        #expect(CGRect(origin: .zero, size: screen).contains(frame), "cursor \(cursor)")
+    }
+}

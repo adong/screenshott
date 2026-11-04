@@ -107,3 +107,58 @@ private func rectangle(_ r: CGRect, size: Double = 4) -> Annotation {
     #expect(two.height == 2 * one.height)
     #expect(TextLayout.size(of: "", fontSize: 20).width == 10)
 }
+
+// MARK: - Ovals and triangles
+
+private func shape(_ kind: Annotation.Kind, _ r: CGRect, size: Double = 4) -> Annotation {
+    Annotation(kind: kind, start: r.origin, end: CGPoint(x: r.maxX, y: r.maxY), size: size)
+}
+
+@Test func shiftMakesAnOvalACircleAndATriangleEquilateral() {
+    let oval = shape(.ellipse, CGRect(x: 0, y: 0, width: 1, height: 1))
+    #expect(oval.dragging(.end, to: CGPoint(x: 100, y: 40), constrained: true).rect
+        == CGRect(x: 0, y: 0, width: 100, height: 100))
+    let triangle = shape(.triangle, CGRect(x: 0, y: 0, width: 1, height: 1))
+    let equilateral = triangle.dragging(.end, to: CGPoint(x: 100, y: 10), constrained: true).rect
+    #expect(equilateral.width == 100)
+    #expect(abs(equilateral.height - 50 * 3.squareRoot()) < 0.001)
+    // Dragged up and to the left, it grows that way.
+    let flipped = triangle.dragging(.end, to: CGPoint(x: -100, y: -10), constrained: true).rect
+    #expect(flipped.maxX == 0 && flipped.width == 100)
+    #expect(abs(flipped.height - 50 * 3.squareRoot()) < 0.001)
+}
+
+@Test func shiftOnACornerHandleKeepsTheOppositeCorner() {
+    let oval = shape(.ellipse, CGRect(x: 10, y: 10, width: 100, height: 40))
+    let circle = oval.dragging(.handle(.bottomRight), to: CGPoint(x: 90, y: 130), constrained: true)
+    #expect(circle.rect == CGRect(x: 10, y: 10, width: 120, height: 120))
+}
+
+@Test func ovalCatchesItsOutlineButNotItsMiddleUntilSelected() {
+    let oval = shape(.ellipse, CGRect(x: 0, y: 0, width: 200, height: 100))
+    #expect(oval.contains(CGPoint(x: 200, y: 50), tolerance: 4, selected: false))
+    #expect(oval.contains(CGPoint(x: 100, y: 3), tolerance: 4, selected: false))
+    #expect(!oval.contains(CGPoint(x: 100, y: 50), tolerance: 4, selected: false))
+    // The rectangle's corner is outside the oval's line.
+    #expect(!oval.contains(CGPoint(x: 4, y: 4), tolerance: 4, selected: false))
+    #expect(oval.contains(CGPoint(x: 100, y: 50), tolerance: 4, selected: true))
+    #expect(!oval.contains(CGPoint(x: 4, y: 4), tolerance: 4, selected: true))
+}
+
+@Test func triangleCatchesItsThreeSidesAndItsInsideOnlyWhenSelected() {
+    let triangle = shape(.triangle, CGRect(x: 0, y: 0, width: 100, height: 100))
+    #expect(triangle.trianglePoints == [CGPoint(x: 50, y: 0), CGPoint(x: 100, y: 100), CGPoint(x: 0, y: 100)])
+    #expect(triangle.contains(CGPoint(x: 50, y: 101), tolerance: 4, selected: false))
+    #expect(triangle.contains(CGPoint(x: 25, y: 50), tolerance: 4, selected: false))
+    #expect(!triangle.contains(CGPoint(x: 50, y: 60), tolerance: 4, selected: false))
+    #expect(triangle.contains(CGPoint(x: 50, y: 60), tolerance: 4, selected: true))
+    // The top corners of its box are outside it.
+    #expect(!triangle.contains(CGPoint(x: 5, y: 5), tolerance: 4, selected: true))
+}
+
+@Test func shapesHaveEightHandlesAndAreDroppedWhenTiny() {
+    for kind in [Annotation.Kind.ellipse, .triangle] {
+        #expect(shape(kind, CGRect(x: 0, y: 0, width: 50, height: 50)).handles.count == 8)
+        #expect(shape(kind, CGRect(x: 0, y: 0, width: 2, height: 50)).isNegligible)
+    }
+}

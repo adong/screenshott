@@ -1,12 +1,21 @@
 import CoreGraphics
 import Foundation
 
-/// An object drawn over the captures. One flat type for all four kinds keeps the JSON
+/// An object drawn over the captures. One flat type for every kind keeps the JSON
 /// simple and lets every kind share the same drag code; fields a kind doesn't use
-/// keep their defaults.
+/// keep their defaults. Rectangle, ellipse and triangle are outline shapes that fill
+/// the rectangle spanned by `start` and `end`.
 public struct Annotation: Codable, Hashable, Sendable, Identifiable {
     public enum Kind: String, Codable, Sendable, CaseIterable {
-        case arrow, rectangle, text, pixelate
+        case arrow, rectangle, ellipse, triangle, text, pixelate
+
+        /// The outline shapes: they fill `rect`, reshape by its eight handles and only
+        /// catch presses on their line until selected.
+        public var isShape: Bool { [.rectangle, .ellipse, .triangle].contains(self) }
+
+        /// Height over width when ⇧ constrains the shape: a square, a circle, or an
+        /// equilateral triangle.
+        var constrainedAspect: Double { self == .triangle ? 3.squareRoot() / 2 : 1 }
     }
 
     /// How a pixelate hides what is under it. Mosaicked text can be recovered by tools
@@ -17,12 +26,12 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
 
     public var id: UUID
     public var kind: Kind
-    /// Arrow: the tail. Rectangle and pixelate: a corner. Text: the top-left corner.
+    /// Arrow: the tail. Shapes and pixelate: a corner. Text: the top-left corner.
     public var start: CGPoint
-    /// Arrow: the head. Rectangle and pixelate: the opposite corner. Text: unused.
+    /// Arrow: the head. Shapes and pixelate: the opposite corner. Text: unused.
     public var end: CGPoint
     public var color: RGBAColor
-    /// Line width (arrow, rectangle) or font size (text), in canvas pixels.
+    /// Line width (arrow, shapes) or font size (text), in canvas pixels.
     public var size: Double
     public var text: String
     public var cover: Cover
@@ -54,7 +63,8 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
     public var bounds: CGRect {
         switch kind {
         case .arrow: ArrowShape.path(from: start, to: end, width: size).boundingBoxOfPath
-        case .rectangle: rect.insetBy(dx: -size / 2, dy: -size / 2)
+        // The triangle's corners are drawn round, so its line stays inside this too.
+        case .rectangle, .ellipse, .triangle: rect.insetBy(dx: -size / 2, dy: -size / 2)
         case .pixelate: rect
         case .text: CGRect(origin: start, size: TextLayout.size(of: text, fontSize: size))
         }
@@ -64,9 +74,16 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
     public var isNegligible: Bool {
         switch kind {
         case .arrow: hypot(end.x - start.x, end.y - start.y) < 4
-        case .rectangle, .pixelate: rect.width < 3 || rect.height < 3
+        case .rectangle, .ellipse, .triangle, .pixelate: rect.width < 3 || rect.height < 3
         case .text: text.allSatisfy(\.isWhitespace)
         }
+    }
+
+    /// A triangle's corners: the apex at the middle of the top edge, then the bottom
+    /// right and bottom left corners (canvas y grows downward).
+    public var trianglePoints: [CGPoint] {
+        let r = rect
+        return [CGPoint(x: r.midX, y: r.minY), CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.minX, y: r.maxY)]
     }
 
     // MARK: - Hit-testing
@@ -76,7 +93,7 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
         case body
         /// An arrow's tail or head.
         case start, end
-        /// A rectangle's or pixelate's corner or edge.
+        /// A shape's or pixelate's corner or edge.
         case handle(SelectionModel.Handle)
     }
 
@@ -85,7 +102,7 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
         switch kind {
         case .arrow:
             return [(.start, start), (.end, end)]
-        case .rectangle, .pixelate:
+        case .rectangle, .ellipse, .triangle, .pixelate:
             let r = rect
             return SelectionModel.Handle.allCases.map { handle in
                 let x: CGFloat = switch handle {
@@ -105,9 +122,9 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
         }
     }
 
-    /// Whether `p` lands on the annotation, within `tolerance`. An outline rectangle
-    /// only catches presses on its line, so you can still draw inside it — unless it
-    /// is selected, when its inside grabs it too.
+    /// Whether `p` lands on the annotation, within `tolerance`. An outline shape only
+    /// catches presses on its line, so you can still draw inside it — unless it is
+    /// selected, when its inside grabs it too.
     public func contains(_ p: CGPoint, tolerance: Double, selected: Bool) -> Bool {
         switch kind {
         case .arrow:
@@ -118,6 +135,29 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
             guard rect.insetBy(dx: -reach, dy: -reach).contains(p) else { return false }
             let inner = rect.insetBy(dx: reach, dy: reach)
             return selected || inner.isNull || !inner.contains(p)
+        case .ellipse:
+            let reach = tolerance + size / 2
+            let r = rect
+            guard r.insetBy(dx: -reach, dy: -reach).contains(p) else { return false }
+            let a = r.width / 2, b = r.height / 2
+            guard a > 0, b > 0 else { return true }
+            let dx = p.x - r.midX, dy = p.y - r.midY
+            // 1 on the outline, less inside. Along the ray from the center, the outline
+            // is |p − center| / k away from the center.
+            let k = hypot(dx / a, dy / b)
+            if selected, k <= 1 { return true }
+            guard k > 0 else { return min(a, b) <= reach }
+            return hypot(dx, dy) * abs(k - 1) / k <= reach
+        case .triangle:
+            let reach = tolerance + size / 2
+            let corners = trianglePoints
+            let onLine = (0..<3).contains { distance(from: p, toSegment: corners[$0], corners[($0 + 1) % 3]) <= reach }
+            guard !onLine else { return true }
+            guard selected else { return false }
+            let path = CGMutablePath()
+            path.addLines(between: corners)
+            path.closeSubpath()
+            return path.contains(p)
         case .pixelate, .text:
             return bounds.insetBy(dx: -tolerance, dy: -tolerance).contains(p)
         }
@@ -133,7 +173,8 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
     }
 
     /// With `part` dragged to `p` (the body moves through `moved`). `constrained` (⇧)
-    /// snaps arrows to 45° steps and makes rectangles square.
+    /// snaps arrows to 45° steps, makes rectangles square, ellipses circles and
+    /// triangles equilateral.
     public func dragging(_ part: Part, to p: CGPoint, constrained: Bool) -> Annotation {
         var edited = self
         switch part {
@@ -165,7 +206,7 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
                     x: [.topLeft, .bottomLeft].contains(handle) ? r.maxX : r.minX,
                     y: [.topLeft, .topRight].contains(handle) ? r.maxY : r.minY
                 )
-                let corner = Self.square(p, from: anchor)
+                let corner = Self.proportioned(p, from: anchor, aspect: kind.constrainedAspect)
                 edited.start = CGPoint(x: min(anchor.x, corner.x), y: min(anchor.y, corner.y))
                 edited.end = CGPoint(x: max(anchor.x, corner.x), y: max(anchor.y, corner.y))
             }
@@ -180,17 +221,20 @@ public struct Annotation: Codable, Hashable, Sendable, Identifiable {
             let length = hypot(dx, dy)
             let angle = (atan2(dy, dx) / (.pi / 4)).rounded() * (.pi / 4)
             return CGPoint(x: fixed.x + length * cos(angle), y: fixed.y + length * sin(angle))
-        case .rectangle, .pixelate:
-            return Self.square(p, from: fixed)
+        case .rectangle, .ellipse, .triangle, .pixelate:
+            return Self.proportioned(p, from: fixed, aspect: kind.constrainedAspect)
         case .text:
             return p
         }
     }
 
-    private static func square(_ p: CGPoint, from fixed: CGPoint) -> CGPoint {
+    /// The corner opposite `fixed` for a box of height / width `aspect` that reaches
+    /// at least as far as `p` in both directions, on `p`'s side of `fixed`.
+    private static func proportioned(_ p: CGPoint, from fixed: CGPoint, aspect: Double) -> CGPoint {
         let dx = p.x - fixed.x, dy = p.y - fixed.y
-        let side = max(abs(dx), abs(dy))
-        return CGPoint(x: fixed.x + (dx < 0 ? -side : side), y: fixed.y + (dy < 0 ? -side : side))
+        let width = max(abs(dx), abs(dy) / aspect)
+        let height = width * aspect
+        return CGPoint(x: fixed.x + (dx < 0 ? -width : width), y: fixed.y + (dy < 0 ? -height : height))
     }
 }
 

@@ -100,3 +100,81 @@ private let box = PixelRect(x: 100, y: 100, width: 200, height: 100)
     var m = model()
     #expect(m.end() == false)
 }
+
+// MARK: - Hold Space to move
+
+@Test func holdingSpaceWhileDrawingMovesTheRectangleAtItsSize() {
+    var m = model()
+    m.begin(at: PixelPoint(x: 100, y: 100), tolerance: 6)
+    m.drag(to: PixelPoint(x: 300, y: 200))
+    m.holdToMove(true)
+    #expect(m.isMoving)
+    m.drag(to: PixelPoint(x: 350, y: 260))
+    #expect(m.selection == PixelRect(x: 150, y: 160, width: 200, height: 100))
+}
+
+@Test func lettingGoOfSpaceGoesBackToDrawingFromTheMovedCorner() {
+    var m = model()
+    m.begin(at: PixelPoint(x: 100, y: 100), tolerance: 6)
+    m.drag(to: PixelPoint(x: 300, y: 200))
+    m.holdToMove(true)
+    m.drag(to: PixelPoint(x: 350, y: 260))
+    m.holdToMove(false)
+    #expect(!m.isMoving)
+    // The anchor moved with the rectangle, so the pointer resizes from (150, 160).
+    m.drag(to: PixelPoint(x: 400, y: 300))
+    #expect(m.end() == false)
+    #expect(m.selection == PixelRect(x: 150, y: 160, width: 250, height: 140))
+}
+
+@Test func aMovedRectangleStopsAtTheImageEdgeAndDrawsOnFromThere() {
+    var m = model()
+    m.begin(at: PixelPoint(x: 100, y: 100), tolerance: 6)
+    m.drag(to: PixelPoint(x: 300, y: 200))
+    m.holdToMove(true)
+    m.drag(to: PixelPoint(x: -500, y: 5000))
+    #expect(m.selection == PixelRect(x: 0, y: 700, width: 200, height: 100))
+    m.holdToMove(false)
+    // The anchor is the moved rectangle's top-left corner, not off the image.
+    m.drag(to: PixelPoint(x: 50, y: 750))
+    #expect(m.selection == PixelRect(x: 0, y: 700, width: 50, height: 50))
+}
+
+@Test func holdingSpaceWhileResizingMovesAndThenResizesAgain() {
+    var m = model(selection: box)
+    #expect(m.begin(at: PixelPoint(x: 300, y: 200), tolerance: 6) == .handle(.bottomRight))
+    m.drag(to: PixelPoint(x: 400, y: 300))
+    #expect(m.selection == PixelRect(x: 100, y: 100, width: 300, height: 200))
+    m.holdToMove(true)
+    m.drag(to: PixelPoint(x: 450, y: 320))
+    #expect(m.selection == PixelRect(x: 150, y: 120, width: 300, height: 200))
+    m.holdToMove(false)
+    m.drag(to: PixelPoint(x: 500, y: 320))
+    #expect(m.selection == PixelRect(x: 150, y: 120, width: 350, height: 200))
+}
+
+@Test func spaceDoesNothingBeforeTheDragLeavesTheSlopOrWithoutADrag() {
+    var m = model(selection: box)
+    m.holdToMove(true)
+    #expect(!m.isMoving)
+    m.begin(at: PixelPoint(x: 600, y: 600), tolerance: 6)
+    m.holdToMove(true)
+    m.drag(to: PixelPoint(x: 700, y: 650))
+    // Still drawing: Space went down while the press was a click.
+    #expect(m.selection == PixelRect(x: 600, y: 600, width: 100, height: 50))
+    #expect(!m.isMoving)
+}
+
+@Test func mouseUpWhileHoldingSpaceKeepsTheMovedRectangle() {
+    var m = model()
+    m.begin(at: PixelPoint(x: 100, y: 100), tolerance: 6)
+    m.drag(to: PixelPoint(x: 300, y: 200))
+    m.holdToMove(true)
+    m.drag(to: PixelPoint(x: 310, y: 210))
+    #expect(m.end() == false)
+    #expect(!m.isMoving)
+    #expect(m.selection == PixelRect(x: 110, y: 110, width: 200, height: 100))
+    // Space coming up after the press ended changes nothing.
+    m.holdToMove(false)
+    #expect(m.selection == PixelRect(x: 110, y: 110, width: 200, height: 100))
+}

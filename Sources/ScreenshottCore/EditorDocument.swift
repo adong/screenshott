@@ -65,7 +65,8 @@ public struct CanvasImage: Codable, Hashable, Sendable, Identifiable {
 
 public struct EditorDocument: Codable, Hashable, Sendable {
     /// Bumped when an older build could no longer read what this one writes.
-    public static let formatVersion = 1
+    /// 2: ellipse and triangle annotations.
+    public static let formatVersion = 2
 
     public var version = Self.formatVersion
     /// Pixels per point of the captures: the exported PNG's DPI is 72 × this, and a

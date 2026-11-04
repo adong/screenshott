@@ -4,6 +4,8 @@
 /// A drag that starts outside the selection draws a new one; inside moves it; on an
 /// edge or corner resizes it. Nothing changes until the pointer leaves `clickSlop`,
 /// so a press that stays put is a click and the caller decides what a click means.
+/// Holding Space while drawing or resizing carries the rectangle along at its current
+/// size, as in macOS's own ⌘⇧4; letting go goes back to drawing or resizing from there.
 public struct SelectionModel: Sendable {
     public enum Handle: Sendable, Equatable, CaseIterable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
@@ -28,14 +30,20 @@ public struct SelectionModel: Sendable {
     private var drag: Drag?
     private var start = PixelPoint(x: 0, y: 0)
     private var leftSlop = false
+    /// The pointer's latest grid point during a press, where Space picks the rectangle up.
+    private var last = PixelPoint(x: 0, y: 0)
+    /// Space held mid-drag: the rectangle when Space went down, and the pointer then.
+    private var carried: (from: PixelRect, origin: PixelPoint)?
 
     public init(bounds: PixelSize, clickSlop: Int) {
         self.bounds = bounds
         self.clickSlop = clickSlop
     }
 
-    /// True while a drag that started inside the selection is carrying it along.
+    /// True while a drag is carrying the selection along: one that started inside it, or
+    /// any drag while Space is held.
     public var isMoving: Bool {
+        if carried != nil { return true }
         if case .moving = drag, leftSlop { return true }
         return false
     }
@@ -71,7 +79,9 @@ public struct SelectionModel: Sendable {
     public mutating func begin(at p: PixelPoint, tolerance: Int) -> Hit {
         let hit = hit(p, tolerance: tolerance)
         start = p
+        last = p
         leftSlop = false
+        carried = nil
         switch (hit, selection) {
         case (.handle(let handle), let r?): drag = .resizing(handle, from: r)
         case (.inside, let r?): drag = .moving(from: r)
@@ -82,6 +92,11 @@ public struct SelectionModel: Sendable {
 
     public mutating func drag(to p: PixelPoint) {
         guard let drag else { return }
+        last = p
+        if let carried {
+            selection = moved(carried.from, dx: p.x - carried.origin.x, dy: p.y - carried.origin.y)
+            return
+        }
         if !leftSlop {
             guard max(abs(p.x - start.x), abs(p.y - start.y)) > clickSlop else { return }
             leftSlop = true
@@ -98,8 +113,41 @@ public struct SelectionModel: Sendable {
 
     /// Ends the press. Returns true when the pointer never left the slop — a click.
     public mutating func end() -> Bool {
-        defer { drag = nil }
+        defer {
+            drag = nil
+            carried = nil
+        }
         return drag != nil && !leftSlop
+    }
+
+    /// Space went down (`true`) or up mid-drag. Down picks up the rectangle being drawn
+    /// or resized, so the pointer moves it at its current size; up puts it down where it
+    /// is and goes back to drawing or resizing from there. Ignored with no drag under way,
+    /// before the pointer has left the slop, and while already moving.
+    public mutating func holdToMove(_ held: Bool) {
+        if held {
+            guard carried == nil, let drag, leftSlop, let r = selection else { return }
+            if case .moving = drag { return }
+            carried = (r, last)
+            return
+        }
+        guard let carried, let drag, let r = selection else {
+            carried = nil
+            return
+        }
+        self.carried = nil
+        // By how much it really moved: `moved` stops at the image edges.
+        let dx = r.minX - carried.from.minX, dy = r.minY - carried.from.minY
+        switch drag {
+        case .creating(let anchor):
+            self.drag = .creating(anchor: PixelPoint(x: anchor.x + dx, y: anchor.y + dy))
+        case .resizing(let handle, let from):
+            self.drag = .resizing(
+                handle, from: PixelRect(x: from.minX + dx, y: from.minY + dy, width: from.width, height: from.height)
+            )
+        case .moving:
+            break
+        }
     }
 
     /// Arrow keys: moves the selection, stopping at the image edges.

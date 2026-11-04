@@ -2,7 +2,7 @@ import AppKit
 import ScreenshottCore
 
 enum EditorTool: CaseIterable {
-    case select, arrow, rectangle, text, pixelate, crop
+    case select, arrow, rectangle, ellipse, triangle, text, pixelate, crop
 
     /// Pressed on its own, with nothing being typed, it picks the tool.
     var key: String {
@@ -10,6 +10,8 @@ enum EditorTool: CaseIterable {
         case .select: "v"
         case .arrow: "a"
         case .rectangle: "r"
+        case .ellipse: "o"
+        case .triangle: "d"
         case .text: "t"
         case .pixelate: "m"
         case .crop: "c"
@@ -21,6 +23,8 @@ enum EditorTool: CaseIterable {
         case .select: "Select"
         case .arrow: "Arrow"
         case .rectangle: "Rectangle"
+        case .ellipse: "Oval"
+        case .triangle: "Triangle"
         case .text: "Text"
         case .pixelate: "Pixelate"
         case .crop: "Crop"
@@ -32,6 +36,8 @@ enum EditorTool: CaseIterable {
         case .select: "cursorarrow"
         case .arrow: "arrow.up.right"
         case .rectangle: "rectangle"
+        case .ellipse: "circle"
+        case .triangle: "triangle"
         case .text: "textformat"
         case .pixelate: "checkerboard.rectangle"
         case .crop: "crop"
@@ -43,6 +49,8 @@ enum EditorTool: CaseIterable {
         switch self {
         case .arrow: .arrow
         case .rectangle: .rectangle
+        case .ellipse: .ellipse
+        case .triangle: .triangle
         case .text: .text
         case .pixelate: .pixelate
         case .select, .crop: nil

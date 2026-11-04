@@ -39,13 +39,15 @@ Later versions signed with the same certificate keep these permissions.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/overlay.png" width="760" alt="Area capture: the frozen screen dimmed outside a 1024 × 576 selection, with resize handles, a size label and a pixel loupe showing coordinates 1792, 936">
+  <img src="docs/images/overlay.png" width="760" alt="Area capture: the frozen screen dimmed outside a 1024 × 576 selection, with resize handles, a size label, the action bar, a tag beside the pointer reading 1792, 936 and #086325 with a green swatch, and a pixel loupe below it">
 </p>
 
 **⌘⇧2 area capture.** The screen freezes the instant you press the hotkey, so nothing
 moves while you aim. Drag a selection, then adjust it: drag the
 handles to resize, drag inside to move, or use the arrow keys for 1 px steps. The
-label shows the exact size in pixels and the loupe magnifies the pixels under the
+label shows the exact size in pixels, a tag beside the pointer gives its coordinates
+and the color under it (⌘C copies the hex while nothing is selected), and the loupe
+magnifies the pixels under the
 pointer. Click without dragging to snap to the window under the pointer. The bar under
 the selection copies, saves elsewhere, opens the editor or runs a workflow, each with
 its own key.
@@ -71,7 +73,7 @@ captures are saved, whether 2x screens keep their full resolution, and whether e
 capture is copied, shows a thumbnail and plays the shutter sound.
 
 <p align="center">
-  <img src="docs/images/workflows.png" width="520" alt="The Workflows tab of Settings: three installed example workflows, Copy at 1x, Copy Markdown Link and Email It, each with its icon, version, description and steps, plus Install and Open Folder buttons">
+  <img src="docs/images/workflows.png" width="520" alt="The Workflows tab of Settings: two installed example workflows, Copy at 1x and Copy Markdown Link, each with its icon, version, description and steps, plus Install and Open Folder buttons">
 </p>
 
 **Workflows.** A workflow is a chain of steps that runs after a capture: your own
@@ -81,7 +83,7 @@ thumbnail or the menu bar, or make it what a preset does. See
 [Writing a workflow](docs/workflows.md).
 
 <p align="center">
-  <img src="docs/images/editor.png" width="760" alt="The editor window: a checkout form with the card number mosaicked, the email painted out in black, a red box around the total with the note 'Is this right?', and a red arrow pointing at the Pay now button">
+  <img src="docs/images/editor.png" width="760" alt="The editor window: a checkout form with the card number mosaicked, the email painted out in black, a red box around the total with a warning triangle and the note 'Is this right?', and a red oval around the Pay now button with an arrow pointing at it">
 </p>
 
 **Editor.** Press **E** in the overlay or click a thumbnail. Draw arrows (**A**),
@@ -119,12 +121,13 @@ see [README screenshots](#readme-screenshots).
 | **Repeat last area** | Takes the same rectangle as the last area capture again, without picking. |
 | **Delayed area** | A 3, 5 or 10 second countdown, then the frozen overlay. Click the countdown to cancel. |
 | **⌥⌘⇧2 scrolling capture** | Drag over the part that scrolls, or click to take the scroll area or window under the pointer. **Enter** scrolls it for you (needs Accessibility); **M** lets you scroll it yourself. Frames are stitched as they arrive, sticky headers and footers appear once, a strip at the screen edge shows the result growing, and it stops at 30,000 px. **Enter** again saves, **Esc** cancels. |
-| **Overlay keys** | **Enter** runs the preset's action · **⌘C** copy only · **⌘S** save as · **E** save and open in the editor · **1–9** run a workflow · **Esc** cancel. The same actions are on a bar under the selection. |
+| **Overlay keys** | **Enter** runs the preset's action · **⌘C** copy only · **⌘S** save as · **E** save and open in the editor · **1–9** run a workflow · **Esc** cancel. The same actions are on a bar under the selection. Hold **Space** while drawing or resizing a selection to move it instead, as in macOS's ⌘⇧4; this works in the scrolling-capture overlay too. |
+| **Coordinates and color picker** | A tag right beside the pointer shows the pixel's coordinates, a swatch and its sRGB hex. With nothing selected, **⌘C** copies the hex (`#3A7BD5`) and closes the overlay. The magnifier can be turned off in Settings → General → *Show magnifier*; the tag stays. |
 | **Workflows** | Post-capture chains of scripts (any language), Apple Shortcuts, URL templates and built-in actions. Scripts get the image path and details on stdin and in `SCREENSHOTT_*` variables and answer with JSON: copy text, show a message, open a URL, or hand back a new image. They run out of process, without Screenshott's Screen Recording permission. Three examples ship in `Examples/Workflows`. |
 | **Custom shortcuts** | Record any combo in Settings. It must use two modifiers (or be a function key), can't clash with another preset or with macOS screenshots, Spotlight and app switching, and is checked against other apps that already hold it. |
 | **Settings** | Presets: shortcut and what happens next (copy + save + thumbnail, copy only, save as, editor, or a workflow). General: save folder · keep full Retina resolution or save at 1x · copy to clipboard · show thumbnail · play sound · launch at login. Workflows: what's installed, install, remove. |
 | **Floating thumbnail** | Drag out as a file, click to edit, **+** to combine with the next capture, right-click menu (copy, show in Finder, editor, workflows). Thumbnails stack per screen and never appear in your next capture. |
-| **Editor** | Arrow, rectangle, text and pixelate (mosaic or solid) as movable, restylable objects; crop that can grow back out; zoom (⌘= / ⌘- / ⌘0 / ⌘9, pinch) and pan (scroll, or hold Space and drag); undo; copy, save, drag out. Single-letter tools: **V A R T M C**, sizes **1 2 3**. |
+| **Editor** | Arrow, rectangle, oval, triangle, text and pixelate (mosaic or solid) as movable, restylable objects. Hold **⇧** for a square, a circle, an equilateral triangle or a 45° arrow. Crop that can grow back out; zoom (⌘= / ⌘- / ⌘0 / ⌘9, pinch) and pan (scroll, or hold Space and drag); undo; copy, save, drag out. Single-letter tools: **V** select, **A** arrow, **R** rectangle, **O** oval, **D** triangle, **T** text, **M** pixelate, **C** crop; sizes **1 2 3**. |
 | **Combine** | Add Capture appends the next capture to the canvas; column or row, start / center / end alignment, no gap to 32 pt. A capture from a display with another scale is resampled to match. |
 | **Re-editable** | The PNG in the save folder is always flat. The originals and objects go to `~/Library/Application Support/Screenshott/Projects/<PNG name>/`; opening that PNG again — from a thumbnail, *Open in Editor…* or Finder's *Open With* — continues where you left off. |
 | **Clipboard + archive** | Every capture goes to the clipboard *and* to the save folder (`~/Pictures/Screenshott/` by default), so the next copy never loses a shot. Files are named `Screenshott 2026-11-02 at 09.41.27.png`. |
@@ -221,7 +224,7 @@ flashes up about 60 times. `--sample` also records a `sample` profile of the run
 ### README screenshots
 
 ```bash
-scripts/readme-shots.sh    # → dist/readme-shots/overlay.png, thumbnail.png, settings.png, workflows.png, editor.png, combine.png
+scripts/readme-shots.sh    # → dist/readme-shots/overlay.png, cursor-tag.png, thumbnail.png, settings.png, general.png, workflows.png, editor.png, combine.png
 ```
 
 Launches the built app with `--readme-shots`. It covers the display under the mouse

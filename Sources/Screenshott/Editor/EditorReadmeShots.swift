@@ -75,9 +75,20 @@ extension AppDelegate {
                 kind: .rectangle, start: total.origin, end: CGPoint(x: total.maxX, y: total.maxY), color: red,
                 size: lineWidth
             ))
-            let note = point(size.width + 24, card.rowRect(row: 3).minY + 2)
+            // A warning triangle (equilateral, as ⇧ draws it) ahead of the note.
+            let warning = point(size.width + 24, card.rowRect(row: 3).minY + 4)
+            let side = 18 * scale
+            document.add(Annotation(
+                kind: .triangle, start: warning, end: CGPoint(x: warning.x + side, y: warning.y + side * 3.squareRoot() / 2),
+                color: red, size: lineWidth
+            ))
+            let note = point(size.width + 24 + 26, card.rowRect(row: 3).minY + 2)
             document.add(Annotation(
                 kind: .text, start: note, end: note, color: red, size: fontSize, text: "Is this right?"
+            ))
+            let pay = canvas(button.insetBy(dx: -14, dy: -10))
+            document.add(Annotation(
+                kind: .ellipse, start: pay.origin, end: CGPoint(x: pay.maxX, y: pay.maxY), color: red, size: lineWidth
             ))
             document.add(arrow)
         }
