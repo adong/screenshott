@@ -60,13 +60,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shortcuts.start(handlers: Dictionary(uniqueKeysWithValues: PresetID.allCases.map { id in
             (id, { [weak self] in self?.presets.run(id) })
         }))
-        delivery.openEditor = { [weak self] item in self?.openInEditor(item) }
         delivery.runWorkflow = { [weak self] id, item, log in _ = self?.workflowRunner.run(id, on: item, log: log) }
         delivery.thumbnails.workflows = { [weak self] in
             self?.workflows.installed.map { ($0.name, .workflow($0.id)) } ?? []
         }
         presets.settings.installedWorkflows = { [weak self] in self?.workflows.ids ?? [] }
         if ReadmeShots.directory != nil { workflows.examplesOnly = true }
+        delivery.editors.startAreaCapture = { [weak self] in
+            guard let self else { return false }
+            await runAreaCapture(pressedAt: ContinuousClock.now)
+            return overlay != nil
+        }
         Permissions.requestScreenCaptureIfNeeded()
         if Permissions.hasScreenCapture { ShareableContentCache.start() }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -116,6 +120,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Open in Editor…", action: #selector(openInEditor), keyEquivalent: "")
+            .target = self
         menu.setSubmenu(workflowsMenu(), for: menu.addItem(withTitle: "Workflows", action: nil, keyEquivalent: ""))
         menu.addItem(withTitle: "Open Screenshots Folder", action: #selector(openArchive), keyEquivalent: "")
             .target = self
@@ -195,14 +201,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openWorkflowsFolder() { workflows.openFolder() }
 
-    /// Double-clicking a `.screenshottworkflow` lands here (Info.plist declares the type).
+    @objc private func grantPermission() { Permissions.showMissingScreenCaptureAlert() }
+
+    @objc private func openInEditor() { delivery.editors.chooseFile() }
+
+    /// Double-clicking a `.screenshottworkflow` installs it (Info.plist declares the type);
+    /// any other file comes from Finder's Open With or the Dock icon and opens in the editor.
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.pathExtension == WorkflowManifest.fileExtension {
-            workflows.install(from: url)
+        for url in urls {
+            if url.pathExtension == WorkflowManifest.fileExtension {
+                workflows.install(from: url)
+            } else {
+                delivery.editors.open(file: url)
+            }
         }
     }
 
-    @objc private func grantPermission() { Permissions.showMissingScreenCaptureAlert() }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        delivery.editors.resolveUnsavedChanges() ? .terminateNow : .terminateCancel
+    }
 
     @objc private func openArchive() {
         try? FileManager.default.createDirectory(at: preferences.saveDirectory, withIntermediateDirectories: true)
@@ -308,6 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             )
         } else {
             Log.write("capture area cancelled")
+            delivery.editors.captureCancelled()
         }
         // The editor keeps the focus it just took.
         if result?.action != .editor { _ = previousApp?.activate(options: []) }

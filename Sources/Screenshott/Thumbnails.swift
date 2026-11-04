@@ -12,6 +12,10 @@ final class Thumbnails {
     var onAction: ((CaptureAction, CaptureItem) -> Void)?
     /// The installed workflows, offered in each thumbnail's menu.
     var workflows: () -> [(name: String, action: CaptureAction)] = { [] }
+    /// What a click does with the file: open it in the editor.
+    var onOpen: ((URL) -> Void)?
+    /// The hover "+" button: open it in the editor and add the next capture (M4).
+    var onAddCapture: ((URL) -> Void)?
 
     /// Window numbers to leave out of the next capture.
     var windowNumbers: Set<Int> { Set(items.map(\.panel.windowNumber)) }
@@ -23,6 +27,8 @@ final class Thumbnails {
             image: image, scale: scale, file: file, size: size, visibleFrame: screen.visibleFrame, workflows: workflows()
         )
         item.onAction = { [weak self] action, capture in self?.onAction?(action, capture) }
+        item.onOpen = onOpen
+        item.onAddCapture = onAddCapture
         item.onDismiss = { [weak self, weak item] in
             guard let self, let item else { return }
             items.removeAll { $0 === item }
@@ -56,6 +62,8 @@ final class ThumbnailItem {
     let visibleFrame: CGRect
     var onDismiss: (() -> Void)?
     var onAction: ((CaptureAction, CaptureItem) -> Void)?
+    var onOpen: ((URL) -> Void)?
+    var onAddCapture: ((URL) -> Void)?
 
     private let image: CGImage
     private let scale: CGFloat
@@ -94,6 +102,7 @@ final class ThumbnailItem {
         view.onDragEnded = { [weak self] delivered in if delivered { self?.dismiss() } }
         view.onClose = { [weak self] in self?.dismiss() }
         view.hasWorkflows = !workflows.isEmpty
+        view.onAddCapture = { [weak self] in self?.addCapture() }
         view.menu = menu()
         view.file = file
         panel.contentView = view
@@ -144,9 +153,15 @@ final class ThumbnailItem {
 
     // MARK: - Actions
 
-    /// Preview for now; the M3 editor takes over.
+    /// In the editor; in the default app if there is none.
     private func open() {
-        NSWorkspace.shared.open(file)
+        if let onOpen { onOpen(file) } else { NSWorkspace.shared.open(file) }
+        dismiss()
+    }
+
+    private func addCapture() {
+        guard let onAddCapture else { return }
+        onAddCapture(file)
         dismiss()
     }
 
@@ -234,6 +249,7 @@ final class ThumbnailView: NSView, NSDraggingSource {
     var onClick: (() -> Void)?
     var onDragEnded: ((Bool) -> Void)?
     var onClose: (() -> Void)?
+    var onAddCapture: (() -> Void)?
     var file: URL?
     /// Shows a bolt on hover that opens the menu, where the workflows are.
     var hasWorkflows = false
@@ -241,6 +257,7 @@ final class ThumbnailView: NSView, NSDraggingSource {
     private let image: CGImage
     private let closeButton = NSButton()
     private let workflowsButton = NSButton()
+    private let addButton = NSButton()
     private var pressPoint: CGPoint?
     private var dragging = false
 
@@ -270,12 +287,22 @@ final class ThumbnailView: NSView, NSDraggingSource {
         closeButton.isHidden = true
         addSubview(closeButton)
 
+        addButton.image = NSImage(systemSymbolName: "plus.circle.fill", accessibilityDescription: "Add Capture")
+        addButton.isBordered = false
+        addButton.contentTintColor = .white
+        addButton.toolTip = "Add Capture: combine this with your next capture"
+        addButton.target = self
+        addButton.action = #selector(add)
+        addButton.frame = CGRect(x: bounds.width - 24, y: bounds.height - 24, width: 20, height: 20)
+        addButton.isHidden = true
+        addSubview(addButton)
+
         workflowsButton.image = NSImage(systemSymbolName: "bolt.circle.fill", accessibilityDescription: "Workflows")
         workflowsButton.isBordered = false
         workflowsButton.contentTintColor = .white
         workflowsButton.target = self
         workflowsButton.action = #selector(showWorkflows)
-        workflowsButton.frame = CGRect(x: bounds.width - 24, y: bounds.height - 24, width: 20, height: 20)
+        workflowsButton.frame = CGRect(x: bounds.width - 46, y: bounds.height - 24, width: 20, height: 20)
         workflowsButton.isHidden = true
         addSubview(workflowsButton)
 
@@ -291,12 +318,14 @@ final class ThumbnailView: NSView, NSDraggingSource {
     override func mouseEntered(with event: NSEvent) {
         closeButton.isHidden = false
         workflowsButton.isHidden = !hasWorkflows
+        addButton.isHidden = onAddCapture == nil
         onHover?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
         closeButton.isHidden = true
         workflowsButton.isHidden = true
+        addButton.isHidden = true
         onHover?(false)
     }
 
@@ -326,6 +355,7 @@ final class ThumbnailView: NSView, NSDraggingSource {
     @objc private func showWorkflows() {
         menu?.popUp(positioning: nil, at: CGPoint(x: workflowsButton.frame.minX, y: workflowsButton.frame.minY), in: self)
     }
+    @objc private func add() { onAddCapture?() }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         context == .outsideApplication ? .copy : []

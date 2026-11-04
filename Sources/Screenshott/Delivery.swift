@@ -46,16 +46,19 @@ final class Delivery {
     let thumbnails = Thumbnails()
     /// The bench swaps in a private pasteboard so it never touches the clipboard.
     var pasteboard = NSPasteboard.general
-    /// The editor (M3), given the capture once it's saved. AppDelegate points it at `openInEditor`.
-    var openEditor: ((CaptureItem) -> Void)?
     /// Installed workflows: (id, capture, log). AppDelegate points it at the WorkflowRunner.
     var runWorkflow: ((String, CaptureItem, String) -> Void)?
     /// The most recent capture.
     private(set) var last: CaptureItem?
+    /// The editor windows (M3) and Add Capture's waiting canvas (M4).
+    let editors: Editors
     private let preferences: Preferences
 
     init(preferences: Preferences) {
         self.preferences = preferences
+        editors = Editors(preferences: preferences)
+        thumbnails.onOpen = { [editors] file in editors.open(file: file) }
+        thumbnails.onAddCapture = { [editors] file in editors.addCapture(toFile: file) }
         thumbnails.onAction = { [weak self] action, item in self?.run(action, on: item, log: "thumbnail") }
     }
 
@@ -65,6 +68,11 @@ final class Delivery {
         _ image: CGImage, scale: CGFloat, on screen: NSScreen?, action: Action, log: String, preset: PresetID? = nil
     ) {
         if preferences.playSound { Self.shutterSound?.play() }
+        // Add Capture (M4): this one goes onto the waiting editor's canvas instead.
+        if editors.append(image, scale: scale) {
+            Log.write("\(log) added to the editor")
+            return
+        }
         var image = image, scale = scale
         if !preferences.keepRetinaResolution, scale > 1, let logical = ImageScaling.downscaled(image, by: scale) {
             (image, scale) = (logical, 1)
@@ -132,7 +140,7 @@ final class Delivery {
             do {
                 let url = try save(item, png)
                 Log.write("\(log) \(timings) saved \(url.lastPathComponent), opening the editor")
-                openEditor?(item)
+                editors.open(item.image, scale: item.scale, png: png, file: url)
             } catch {
                 Log.write("\(log) save failed: \(error)")
                 NSSound.beep()

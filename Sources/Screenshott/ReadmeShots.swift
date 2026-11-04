@@ -127,5 +127,8 @@ extension AppDelegate {
         model.tab = .presets
         window.level = .normal
         window.close()
+
+        // 4. The editor (EditorReadmeShots.swift).
+        await runEditorReadmeShots(on: screen, into: directory)
     }
 }
