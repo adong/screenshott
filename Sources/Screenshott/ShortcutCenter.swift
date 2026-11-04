@@ -9,6 +9,7 @@ final class ShortcutCenter: ObservableObject {
     enum Action: UInt32, CaseIterable, Identifiable {
         case captureArea = 1
         case captureFullScreen = 2
+        case captureScrolling = 3
 
         var id: UInt32 { rawValue }
 
@@ -16,6 +17,7 @@ final class ShortcutCenter: ObservableObject {
             switch self {
             case .captureArea: "Capture Area"
             case .captureFullScreen: "Capture Full Screen"
+            case .captureScrolling: "Capture Scrolling"
             }
         }
 
@@ -23,6 +25,7 @@ final class ShortcutCenter: ObservableObject {
             switch self {
             case .captureArea: .captureArea
             case .captureFullScreen: .captureFullScreen
+            case .captureScrolling: .captureScrolling
             }
         }
 
@@ -31,6 +34,7 @@ final class ShortcutCenter: ObservableObject {
             switch self {
             case .captureArea: "captureArea"
             case .captureFullScreen: "captureFullScreen"
+            case .captureScrolling: "captureScrolling"
             }
         }
     }

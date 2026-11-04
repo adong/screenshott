@@ -83,6 +83,10 @@ extension AppDelegate {
             Log.write("readme-shots done: \(directory.path)")
         }
         try? await Task.sleep(for: .milliseconds(400))
+        if ReadmeShots.only == "scrolling" {
+            await runScrollingReadmeShots(into: directory, on: stage)
+            return
+        }
 
         // 1. The frozen overlay with a staged selection and the loupe on its corner. The
         // crop leaves room for the size label above and the loupe below right.
@@ -121,5 +125,8 @@ extension AppDelegate {
         await ReadmeShots.photograph(window.frame.insetBy(dx: -40, dy: -40), of: screen, as: "settings.png", in: directory)
         window.level = .normal
         window.close()
+
+        // 4. Scrolling capture of a page we draw (ReadmeShots+Scrolling.swift).
+        await runScrollingReadmeShots(into: directory, on: screen)
     }
 }

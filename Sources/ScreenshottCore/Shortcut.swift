@@ -20,6 +20,9 @@ public struct Shortcut: Codable, Hashable, Sendable {
     public static let captureFullScreen = Shortcut(
         keyCode: UInt32(kVK_ANSI_1), modifiers: UInt32(cmdKey | shiftKey), key: "1"
     )
+    public static let captureScrolling = Shortcut(
+        keyCode: UInt32(kVK_ANSI_2), modifiers: UInt32(cmdKey | optionKey | shiftKey), key: "2"
+    )
 
     /// "⌃⌥⇧⌘2" — modifiers in the order macOS menus print them.
     public var displayString: String {

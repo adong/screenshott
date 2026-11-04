@@ -1,18 +1,20 @@
 #!/bin/bash
-# Photograph the area overlay, the thumbnail and Settings for the README,
+# Photograph the area overlay, the thumbnail, Settings and a scrolling capture for the README,
 # driving the real app without a mouse (see Sources/Screenshott/ReadmeShots.swift).
 # Writes PNGs already cropped for docs/images, shot over a stock wallpaper.
 #
-#   scripts/readme-shots.sh [out-dir]     # default: dist/readme-shots
+#   scripts/readme-shots.sh [out-dir] [only]   # default: dist/readme-shots, all shots
+#   scripts/readme-shots.sh dist/readme-shots scrolling   # just the scrolling capture
 #
-# Side effects, same as one real ⌘⇧2 + Enter: the shutter sound, the clipboard is
-# replaced, and one capture is saved to ~/Pictures/Screenshott. Build first with
-# scripts/bundle.sh.
+# Side effects, same as one real ⌘⇧2 + Enter and one ⌥⌘⇧2: the shutter sound, the
+# clipboard is replaced, and captures are saved to ~/Pictures/Screenshott. Build first
+# with scripts/bundle.sh.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 APP="dist/Screenshott.app"
 OUT="${1:-dist/readme-shots}"
+ONLY="${2:-}"
 [[ -d "$APP" ]] || { echo "no $APP — run scripts/bundle.sh first" >&2; exit 1; }
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
@@ -27,9 +29,9 @@ LOG="$HOME/Library/Logs/Screenshott.log"
 START=$(( $(/usr/bin/wc -l < "$LOG" 2>/dev/null || echo 0) + 1 ))
 
 # Through open, not the binary, so Screenshott is its own process for Screen Recording.
-/usr/bin/open "$APP" --args --readme-shots "$OUT"
+/usr/bin/open "$APP" --args --readme-shots "$OUT" ${ONLY:+--readme-only "$ONLY"}
 
-for _ in $(seq 1 30); do
+for _ in $(seq 1 90); do
     if /usr/bin/tail -n "+$START" "$LOG" | /usr/bin/grep -q "readme-shots done"; then
         /usr/bin/tail -n "+$START" "$LOG" | /usr/bin/grep "readme-shots"
         exit 0
