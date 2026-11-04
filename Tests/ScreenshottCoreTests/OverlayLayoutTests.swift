@@ -60,8 +60,9 @@ private let image = PixelSize(width: 2560, height: 1440)
     #expect(MagnifierLayout.tagFrame(size: tag, cursor: cursor, in: screen, loupe: nil) == frame)
 }
 
-@Test func tagNeverCoversTheLoupeNearTheEdges() {
-    let tag = CGSize(width: 130, height: 20), screen = CGSize(width: 1512, height: 982)
+@Test(arguments: [CGSize(width: 130, height: 20), CGSize(width: 230, height: 36)])
+func tagNeverCoversTheLoupeNearTheEdges(tag: CGSize) {
+    let screen = CGSize(width: 1512, height: 982)
     let loupeSize = CGSize(width: 135, height: 135)
     for cursor in [
         CGPoint(x: 1500, y: 20), CGPoint(x: 5, y: 975), CGPoint(x: 1505, y: 975), CGPoint(x: 5, y: 5),

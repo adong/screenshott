@@ -20,6 +20,9 @@ public struct PixelColor: Equatable, Sendable {
         return "#" + [red, green, blue].map { "\(digits[Int($0 >> 4)])\(digits[Int($0 & 15)])" }.joined()
     }
 
+    /// "rgb(58, 123, 213)", as CSS writes it.
+    public var rgb: String { "rgb(\(red), \(green), \(blue))" }
+
     public var cgColor: CGColor {
         CGColor(srgbRed: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: 1)
     }

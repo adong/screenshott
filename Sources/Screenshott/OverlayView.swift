@@ -267,7 +267,8 @@ final class OverlayView: NSView {
             } else {
                 loupe.layer.isHidden = true
             }
-            cursorTag.set(pixel, color: PixelColor.at(pixel, in: display.image))
+            // ⌘C copies the color only while nothing is selected; then it copies the image.
+            cursorTag.set(pixel, color: PixelColor.at(pixel, in: display.image), copyHint: controller?.selectionView == nil)
             cursorTag.layer.frame = MagnifierLayout.tagFrame(
                 size: cursorTag.layer.bounds.size, cursor: pointer, in: bounds.size, loupe: loupeFrame
             )
@@ -376,15 +377,16 @@ private final class Loupe {
     }
 }
 
-/// Right beside the pointer: a swatch of the pixel's color, its coordinates and its
-/// hex, which ⌘C copies while nothing is selected.
+/// Right beside the pointer: a swatch of the pixel's color, its hex and rgb on the first
+/// line, its coordinates on the second, plus a dim "⌘C to copy hex" while nothing is
+/// selected, when that's what ⌘C does.
 @MainActor
 private final class CursorTag {
     let layer = CALayer()
     private let swatch = CALayer()
     private let text = CATextLayer()
     private static let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-    private static let swatchSide: CGFloat = 10
+    private static let swatchSide: CGFloat = 14
 
     init(scale: CGFloat) {
         layer.backgroundColor = NSColor.black.withAlphaComponent(0.72).cgColor
@@ -392,17 +394,25 @@ private final class CursorTag {
         swatch.borderColor = NSColor.white.withAlphaComponent(0.8).cgColor
         swatch.borderWidth = 1
         swatch.cornerRadius = 2
-        text.font = Self.font
-        text.fontSize = Self.font.pointSize
-        text.foregroundColor = NSColor.white.cgColor
         text.contentsScale = scale
         layer.addSublayer(swatch)
         layer.addSublayer(text)
     }
 
-    func set(_ pixel: PixelPoint, color: PixelColor?) {
-        let string = "\(pixel.x), \(pixel.y)" + (color.map { "  \($0.hex)" } ?? "")
-        let size = NSAttributedString(string: string, attributes: [.font: Self.font]).size()
+    func set(_ pixel: PixelPoint, color: PixelColor?, copyHint: Bool) {
+        let plain: [NSAttributedString.Key: Any] = [.font: Self.font, .foregroundColor: NSColor.white]
+        let dim: [NSAttributedString.Key: Any] = [
+            .font: Self.font, .foregroundColor: NSColor.white.withAlphaComponent(0.55),
+        ]
+        let string = NSMutableAttributedString()
+        if let color {
+            string.append(NSAttributedString(string: "\(color.hex)   \(color.rgb)\n", attributes: plain))
+        }
+        string.append(NSAttributedString(string: "\(pixel.x), \(pixel.y)", attributes: plain))
+        if copyHint, color != nil {
+            string.append(NSAttributedString(string: "   ⌘C to copy hex", attributes: dim))
+        }
+        let size = string.size()
         let width = ceil(size.width), height = ceil(size.height)
         let side = Self.swatchSide
         swatch.isHidden = color == nil

@@ -19,3 +19,7 @@ import Testing
 @Test func hexIsTwoUppercaseDigitsPerChannel() {
     #expect(PixelColor(red: 255, green: 0, blue: 171).hex == "#FF00AB")
 }
+
+@Test func rgbIsWrittenTheCSSWay() {
+    #expect(PixelColor(red: 8, green: 99, blue: 37).rgb == "rgb(8, 99, 37)")
+}
