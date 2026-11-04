@@ -72,8 +72,8 @@ back to `holder: free` when done. Bash can't write there; use the Edit tool.
 | v0.2.0 pre-release + `Screenshott-0.2.0.dmg` (version 0.2.0, build 2), from the commit tagged `v0.2.0` | released by the main session on 2026-11-04 — check `gh release view v0.2.0 -R adong/screenshott` | release notes in the release itself | The next release needs another version bump |
 | Hold Space to move a selection; Oval (O) and Triangle (D) with ⇧; cursor tag with hex and rgb and a "⌘C to copy hex" hint; Show magnifier switch; ⌘C copies hex with no selection; SF Symbol icons on every menu bar menu item | done, in v0.2.0 | Core tests (186); readme-shots images | Alan hand-tested the 21ab1ac features and said "looks good"; the hex + rgb tag and the hint were checked only in screenshots; the menu icons not at all (the macOS 26 menu can't be photographed) |
 | Branch `m5-scrolling` docs commits `b205feb`, `d8e50fe` (scrolling docs, test table, README scrolling shots) | merged into main | merge "Merge m5-scrolling: scrolling docs, test table and README shots" | — |
-| M5's uncommitted scroll self-test code (`ScrollSelfTest.swift`, `scripts/scroll-test.sh`) | in the M5 worktree `.worktrees/m5-scrolling`, **not committed** | `git -C .worktrees/m5-scrolling status` | The M5 session's to finish; Alan hasn't asked to merge it |
-| Scrolling acceptance on 13 real apps | stopped partway at Alan's word ("i think we are good, for now") | requirements.md "长截图 v1 验收"; M5's own reports, not checked here: Safari passes; **iTerm2 stops partway down** (Alan: "somehow iterm2 always half way done"; log shows ~140 of ~150 frames lost on overlap); Cursor skipped (Alan: "skip cursor") | Fix iTerm2; finish the remaining apps; record results in requirements.md |
+| M5's scroll self-test (`ScrollSelfTest.swift`, `scripts/scroll-test.sh`, `lost=N` in the capture log line) | committed on `m5-scrolling` as `7e7a62d` (Alan: "commit it"), **not merged**; the branch is behind main | `git log main..m5-scrolling` | Rebase onto main, then merge when Alan says so |
+| Scrolling acceptance on 13 real apps | recorded as it stands (requirements.md "长截图实测"): Safari, Chrome, Terminal, Ghostty, VS Code pass; iTerm2 fails because Alan's window is see-through (turn off transparency, ⌘U, and retest); Cursor skipped; Slack, WeChat, Notes, Mail, cmux, Finder untested | M5's `--scroll-test` OCR self-test, as M5 reported it | Retest iTerm2 opaque; test the untested apps when problems come up |
 | Retina (2x) display, more than one display, Live Area, recording a shortcut in Settings | untested by hand | only one 1x 2560×1440 display has been used | Alan's hands |
 
 **Merging a side branch that also touches `docs/images/`.** Binary images can't be merged:
@@ -190,8 +190,8 @@ The macOS 26 menu bar menu can't be photographed (the status item's menu opens o
 
 ## Next actions
 
-1. Fix scrolling capture in iTerm2 (frames lost on overlap partway down), then finish the
-   13-app acceptance and record it in requirements.md "长截图 v1 验收".
+1. Find why the scrolling demo stops early when it runs after the other readme-shots steps
+   (see requirements.md "长截图实测"); retest iTerm2 with transparency off.
 2. Hand-test what's still untested (see "Hand tests only Alan can do").
 3. For the next release, follow "Release".
 

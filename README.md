@@ -164,7 +164,7 @@ see [README screenshots](#readme-screenshots).
 | **M2 Presets & hotkeys** | Every hotkey is a preset: frozen or live × no selection / area / window × what Enter does. Hotkey recorder, settings, shared action interface | 🧪 Built; hands-on test of Live Area next |
 | **M3 Editor** | Crop, zoom, arrow, rectangle, text, pixelate (with a solid-cover mode that really replaces the pixels). Re-editable after saving | 🧪 Built; hands-on test next |
 | **M4 Combine** | Put several captures on one canvas with automatic layout | 🧪 Built; hands-on test next |
-| **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | 🧪 Built; hands-on test against the app list under way — Safari passes, iTerm2 stops partway down (known issue) |
+| **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | 🧪 Built; passes in Safari, Chrome, Terminal, Ghostty and VS Code (text area only). A see-through iTerm2 window can't be stitched, since the window behind it doesn't scroll: turn transparency off (⌘U). Slack, WeChat, Notes, Mail, cmux and Finder are untested |
 | **M7 Workflows** | Alfred-style post-capture workflows: scripts, Apple Shortcuts or URL templates that receive the image and decide where it goes next | 🧪 Built; three examples |
 | **M6 Polish** | Benchmark mode (p50/p95 against Shottr's 17 ms grab), launch at login | 🚧 Bench mode and faster capture done; PNG encoding off the main thread next |
 
