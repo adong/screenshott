@@ -8,15 +8,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// A bench run gets throwaway settings: temp save folder, no sound, no thumbnails.
     private let preferences = Preferences(defaults: Bench.defaults ?? .standard)
     private lazy var shortcuts = ShortcutCenter(preferences: preferences)
-    /// Not private: Bench.swift points it at a private pasteboard.
+    // Not private, like `overlay` below: SelfTest.swift drives them, and Bench.swift
+    // points `delivery` at a private pasteboard.
     lazy var delivery = Delivery(preferences: preferences)
+    lazy var presets = PresetRunner(app: self, delivery: delivery)
+    lazy var workflows = WorkflowStore()
+    lazy var workflowRunner = WorkflowRunner(store: workflows, delivery: delivery)
     private var settings: SettingsWindowController?
 
     /// Not private, like `runAreaCapture`: ReadmeShots.swift drives them.
     var overlay: OverlayController?
     /// True from the hotkey until the overlay is gone, so a second press can't stack a
     /// second overlay while the first capture is still in flight.
-    private var areaCaptureRunning = false
+    private(set) var areaCaptureRunning = false
+    /// The preset whose overlay is open.
+    private var areaCapturePreset = PresetID.captureArea
     /// The app that had focus before the overlay took it; it gets focus back after.
     private var previousApp: NSRunningApplication?
 
@@ -51,10 +57,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        shortcuts.start(handlers: [
-            .captureArea: { [weak self] in self?.captureArea() },
-            .captureFullScreen: { [weak self] in self?.captureFullScreen() },
-        ])
+        shortcuts.start(handlers: Dictionary(uniqueKeysWithValues: PresetID.allCases.map { id in
+            (id, { [weak self] in self?.presets.run(id) })
+        }))
+        delivery.openEditor = { [weak self] item in self?.openInEditor(item) }
+        delivery.runWorkflow = { [weak self] id, item, log in _ = self?.workflowRunner.run(id, on: item, log: log) }
+        delivery.thumbnails.workflows = { [weak self] in
+            self?.workflows.installed.map { ($0.name, .workflow($0.id)) } ?? []
+        }
+        presets.settings.installedWorkflows = { [weak self] in self?.workflows.ids ?? [] }
+        if ReadmeShots.directory != nil { workflows.examplesOnly = true }
         Permissions.requestScreenCaptureIfNeeded()
         if Permissions.hasScreenCapture { ShareableContentCache.start() }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -71,6 +83,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let runs = Bench.runs {
             Task { await runBench(runs: runs) }
         }
+        if let probe = DisclaimCheck.probe {
+            Task { await DisclaimCheck.run(probe: probe) }
+        }
+        if SelfTest.requested {
+            Task { await runSelfTest() }
+        }
     }
 
     // MARK: - Menu bar
@@ -79,13 +97,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// permission state.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        for (action, selector) in [
-            (ShortcutCenter.Action.captureArea, #selector(captureAreaFromMenu)),
-            (.captureFullScreen, #selector(captureFullScreenFromMenu)),
-        ] {
-            let item = menu.addItem(withTitle: action.title, action: selector, keyEquivalent: "")
+        for id in PresetID.allCases {
+            let delay = presets.settings.delay(for: id)
+            let title = delay > 0 ? "\(id.title) (\(delay) s)" : id.title
+            let item = menu.addItem(withTitle: title, action: #selector(runPresetFromMenu(_:)), keyEquivalent: "")
             item.target = self
-            if let shortcut = shortcuts.shortcuts[action] { Self.show(shortcut, on: item) }
+            item.representedObject = id.rawValue
+            if let shortcut = shortcuts.shortcuts[id] { Self.show(shortcut, on: item) }
         }
         for action in ShortcutCenter.Action.allCases where shortcuts.taken.contains(action) {
             let combo = shortcuts.shortcuts[action]?.displayString ?? ""
@@ -98,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        menu.setSubmenu(workflowsMenu(), for: menu.addItem(withTitle: "Workflows", action: nil, keyEquivalent: ""))
         menu.addItem(withTitle: "Open Screenshots Folder", action: #selector(openArchive), keyEquivalent: "")
             .target = self
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -128,19 +147,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.keyEquivalentModifierMask = mask
     }
 
-    // Menu items wait for the menu to fade out so it isn't in the shot.
-
-    @objc private func captureAreaFromMenu() {
+    /// Waits for the menu to fade out so it isn't in the shot.
+    @objc private func runPresetFromMenu(_ item: NSMenuItem) {
+        guard let id = (item.representedObject as? String).flatMap(PresetID.init(rawValue:)) else { return }
         Task {
             try? await Task.sleep(for: .milliseconds(250))
-            await runAreaCapture(pressedAt: ContinuousClock.now)
+            presets.run(id)
         }
     }
 
-    @objc private func captureFullScreenFromMenu() {
-        Task {
-            try? await Task.sleep(for: .milliseconds(250))
-            await runFullScreenCapture()
+    /// Each workflow runs on the last capture; then install and the folder.
+    private func workflowsMenu() -> NSMenu {
+        let menu = NSMenu()
+        let hasCapture = delivery.last != nil
+        if workflows.installed.isEmpty {
+            menu.addItem(withTitle: "No Workflows Installed", action: nil, keyEquivalent: "").isEnabled = false
+        } else {
+            menu.addItem(withTitle: hasCapture ? "Run on Last Capture" : "Run on Last Capture (none yet)",
+                         action: nil, keyEquivalent: "").isEnabled = false
+            for workflow in workflows.installed {
+                let item = menu.addItem(withTitle: workflow.name, action: #selector(runWorkflowFromMenu(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = workflow.id
+                item.isEnabled = hasCapture
+                item.indentationLevel = 1
+                if let icon = workflow.icon {
+                    icon.size = NSSize(width: 16, height: 16)
+                    item.image = icon
+                }
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Install Workflow…", action: #selector(installWorkflow), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Open Workflows Folder", action: #selector(openWorkflowsFolder), keyEquivalent: "")
+            .target = self
+        // Items with no action are enabled by hand above; keep AppKit from overriding that.
+        menu.autoenablesItems = false
+        return menu
+    }
+
+    @objc private func runWorkflowFromMenu(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? String, let last = delivery.last else { return }
+        delivery.run(.workflow(id), on: last, log: "menu")
+    }
+
+    @objc private func installWorkflow() { workflows.chooseAndInstall() }
+
+    @objc private func openWorkflowsFolder() { workflows.openFolder() }
+
+    /// Double-clicking a `.screenshottworkflow` lands here (Info.plist declares the type).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.pathExtension == WorkflowManifest.fileExtension {
+            workflows.install(from: url)
         }
     }
 
@@ -153,28 +211,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Not private: ReadmeShots.swift photographs it.
     @objc func openSettings() {
-        if settings == nil { settings = SettingsWindowController(preferences: preferences, shortcuts: shortcuts) }
+        if settings == nil {
+            settings = SettingsWindowController(
+                preferences: preferences, shortcuts: shortcuts, presets: presets.settings, workflows: workflows
+            )
+        }
         settings?.show()
     }
 
     var settingsWindow: NSWindow? { settings?.window }
+    var settingsModel: SettingsModel? { settings?.model }
 
     @objc private func openLog() { NSWorkspace.shared.open(Log.url) }
 
     // MARK: - Capture
 
-    private func captureFullScreen() {
-        Task { await runFullScreenCapture() }
-    }
-
-    private func captureArea() {
-        let pressed = ContinuousClock.now
-        Task { await runAreaCapture(pressedAt: pressed) }
-    }
-
-    /// Display under the mouse → copy + archive + thumbnail. Not private: Bench.swift
-    /// times it.
-    func runFullScreenCapture() async {
+    /// Display under the mouse → the preset's action (copy + archive + thumbnail).
+    /// Bench.swift times it.
+    func runFullScreenCapture(preset: PresetID = .captureFullScreen, then action: Delivery.Action = .standard) async {
         guard !areaCaptureRunning else { return }
         guard Permissions.hasScreenCapture else {
             Permissions.showMissingScreenCaptureAlert()
@@ -185,12 +239,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let capture = try await ScreenCapturer.capture([screen], excluding: delivery.thumbnails.windowNumbers)
             guard let display = capture.displays.first else { throw CaptureError.noDisplay }
             delivery.deliver(
-                display.image, scale: display.scale, on: screen, action: .standard,
+                display.image, scale: display.scale, on: screen, action: action,
                 log: String(
                     format: "capture full %dx%d @%.0fx list=%.1fms grab=%.1fms",
                     display.image.width, display.image.height, display.scale,
                     capture.contentQuery.milliseconds, capture.grab.milliseconds
-                )
+                ),
+                preset: preset
             )
         } catch {
             Log.write("capture failed: \(error)")
@@ -198,14 +253,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Freezes every display, then lets the user pick an area on the frozen frame.
-    func runAreaCapture(pressedAt pressed: ContinuousClock.Instant) async {
+    /// Freezes every display, then lets the user pick an area on the frozen frame. Enter
+    /// runs `enterAction`.
+    func runAreaCapture(
+        pressedAt pressed: ContinuousClock.Instant, preset: PresetID = .captureArea,
+        enterAction: Delivery.Action = .standard
+    ) async {
         guard !areaCaptureRunning else { return }
         guard Permissions.hasScreenCapture else {
             Permissions.showMissingScreenCaptureAlert()
             return
         }
         areaCaptureRunning = true
+        areaCapturePreset = preset
         // Before anything of ours is on screen, so the list holds only other apps' windows.
         let windows = WindowList.snapshot()
         do {
@@ -214,7 +274,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let frontmost = NSWorkspace.shared.frontmostApplication
             previousApp = frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : frontmost
 
-            let controller = OverlayController(capture: capture, windows: windows) { [weak self] result in
+            let controller = OverlayController(
+                capture: capture, windows: windows, enterAction: enterAction,
+                barItems: OverlayActionBar.items(workflows: workflows.installed)
+            ) { [weak self] result in
                 self?.overlayFinished(result)
             }
             overlay = controller
@@ -237,14 +300,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay = nil
         areaCaptureRunning = false
         if let result {
+            presets.remember(area: result.area)
             delivery.deliver(
                 result.image, scale: result.scale, on: result.screen, action: result.action,
-                log: String(format: "capture area %dx%d @%.0fx", result.image.width, result.image.height, result.scale)
+                log: String(format: "capture area %dx%d @%.0fx", result.image.width, result.image.height, result.scale),
+                preset: areaCapturePreset
             )
         } else {
             Log.write("capture area cancelled")
         }
-        _ = previousApp?.activate(options: [])
+        // The editor keeps the focus it just took.
+        if result?.action != .editor { _ = previousApp?.activate(options: []) }
         previousApp = nil
     }
 }

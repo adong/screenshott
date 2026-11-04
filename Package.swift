@@ -17,5 +17,7 @@ let package = Package(
         ),
         // Dev tool that redraws Support/AppIcon.iconset; see scripts/make-icon.sh.
         .executableTarget(name: "MakeIcon", path: "Tools/MakeIcon"),
+        // Dev tool for scripts/verify-disclaim.sh: does a workflow step inherit Screen Recording?
+        .executableTarget(name: "TCCProbe", path: "Tools/TCCProbe"),
     ]
 )

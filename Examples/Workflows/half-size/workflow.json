@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "id": "com.screenshott.example.half-size",
+  "name": "Copy at 1x",
+  "version": "1.0",
+  "author": "Screenshott examples",
+  "description": "Halves a capture from a Retina screen so it pastes at its on-screen size, then copies it.",
+  "icon": "icon.png",
+  "steps": [
+    { "type": "script", "path": "half-size.sh", "timeout": 20 },
+    { "type": "action", "action": "copy" }
+  ]
+}

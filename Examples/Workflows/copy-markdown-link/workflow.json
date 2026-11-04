@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "id": "com.screenshott.example.copy-markdown-link",
+  "name": "Copy Markdown Link",
+  "version": "1.0",
+  "author": "Screenshott examples",
+  "description": "Copies a Markdown image link to the saved PNG, ready to paste into notes.",
+  "icon": "icon.png",
+  "steps": [
+    { "type": "script", "path": "copy-link.js" }
+  ]
+}

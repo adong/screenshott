@@ -2,38 +2,12 @@ import AppKit
 import Carbon.HIToolbox
 import ScreenshottCore
 
-/// The app's global shortcuts: which action each one runs, what it is bound to, and
-/// whether macOS let us have it. Settings changes them through `set(_:for:)`.
+/// The app's global shortcuts: one per preset, what each is bound to, and whether
+/// macOS let us have it. Settings changes them through `set(_:for:)`.
 @MainActor
 final class ShortcutCenter: ObservableObject {
-    enum Action: UInt32, CaseIterable, Identifiable {
-        case captureArea = 1
-        case captureFullScreen = 2
-
-        var id: UInt32 { rawValue }
-
-        var title: String {
-            switch self {
-            case .captureArea: "Capture Area"
-            case .captureFullScreen: "Capture Full Screen"
-            }
-        }
-
-        var defaultShortcut: Shortcut {
-            switch self {
-            case .captureArea: .captureArea
-            case .captureFullScreen: .captureFullScreen
-            }
-        }
-
-        /// Stable name for UserDefaults.
-        var storageName: String {
-            switch self {
-            case .captureArea: "captureArea"
-            case .captureFullScreen: "captureFullScreen"
-            }
-        }
-    }
+    /// Hotkeys belong to presets; a workflow gets one by being a preset's Enter action.
+    typealias Action = PresetID
 
     @Published private(set) var shortcuts: [Action: Shortcut] = [:]
     /// Bound, but registration failed — usually another app (Shottr) owns the combo.
@@ -50,7 +24,7 @@ final class ShortcutCenter: ObservableObject {
     func start(handlers: [Action: () -> Void]) {
         self.handlers = handlers
         for action in Action.allCases {
-            let shortcut = preferences.storedShortcut(action.storageName) ?? action.defaultShortcut
+            let shortcut = preferences.storedShortcut(action.storageName) ?? action.preset.defaultShortcut
             bind(action, to: shortcut)
         }
     }
@@ -60,7 +34,7 @@ final class ShortcutCenter: ObservableObject {
     func set(_ shortcut: Shortcut?, for action: Action) -> String? {
         if let shortcut {
             var others: [String: Shortcut] = [:]
-            for (other, bound) in shortcuts where other != action { others[other.title] = bound }
+            for (other, bound) in shortcuts where other != action { others[other.preset.title] = bound }
             if let problem = shortcut.problem(among: others) { return problem.message }
         }
         let previous = shortcuts[action]
@@ -82,9 +56,16 @@ final class ShortcutCenter: ObservableObject {
 
     @discardableResult
     private func bind(_ action: Action, to shortcut: Shortcut?) -> Bool {
-        let status = HotKeys.bind(action.rawValue, to: shortcut) { [weak self] in self?.handlers[action]?() }
+        let status = HotKeys.bind(action.hotKeyID, to: shortcut) { [weak self] in self?.handlers[action]?() }
         shortcuts[action] = shortcut
         if status == noErr { taken.remove(action) } else { taken.insert(action) }
         return status == noErr
     }
+}
+
+extension PresetID {
+    var title: String { preset.title }
+    var defaultShortcut: Shortcut? { preset.defaultShortcut }
+    /// Stable name for UserDefaults.
+    var storageName: String { rawValue }
 }
