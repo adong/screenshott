@@ -12,6 +12,9 @@ final class Delivery {
         case copyOnly
         /// A save panel instead of the archive folder.
         case saveAs
+        /// Save to the folder, then open the editor on that file. No copy or
+        /// thumbnail: the editor's ⌘C and ⌘S deliver the marked-up version.
+        case editor
     }
 
     private static let shutterSound = NSSound(
@@ -20,10 +23,13 @@ final class Delivery {
     )
 
     let thumbnails = Thumbnails()
+    let editors: Editors
     private let preferences: Preferences
 
     init(preferences: Preferences) {
         self.preferences = preferences
+        editors = Editors(preferences: preferences)
+        thumbnails.onOpen = { [editors] file in editors.open(file: file) }
     }
 
     /// `log` starts the log line (what was captured and how long that took); this adds
@@ -63,6 +69,15 @@ final class Delivery {
             Log.write("\(log) \(timings) copied only")
         case .saveAs:
             saveAs(png, image: image, scale: scale, on: screen, log: "\(log) \(timings)")
+        case .editor:
+            do {
+                let url = try save(png)
+                Log.write("\(log) \(timings) saved \(url.lastPathComponent), opening the editor")
+                editors.open(image, scale: scale, png: png, file: url)
+            } catch {
+                Log.write("\(log) save failed: \(error)")
+                NSSound.beep()
+            }
         }
     }
 

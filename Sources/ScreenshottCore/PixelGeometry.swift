@@ -5,7 +5,7 @@ import CoreGraphics
 // Mixing the two (and their two y directions) is the bug these types exist to stop.
 
 /// A pixel in a captured image: top-left origin, physical pixels (CGImage's own space).
-public struct PixelPoint: Hashable, Sendable {
+public struct PixelPoint: Hashable, Sendable, Codable {
     public var x: Int
     public var y: Int
 
@@ -15,7 +15,7 @@ public struct PixelPoint: Hashable, Sendable {
     }
 }
 
-public struct PixelSize: Hashable, Sendable {
+public struct PixelSize: Hashable, Sendable, Codable {
     public var width: Int
     public var height: Int
 
@@ -26,7 +26,7 @@ public struct PixelSize: Hashable, Sendable {
 }
 
 /// A rectangle of whole pixels in a captured image, top-left origin.
-public struct PixelRect: Hashable, Sendable {
+public struct PixelRect: Hashable, Sendable, Codable {
     public var x: Int
     public var y: Int
     public var width: Int

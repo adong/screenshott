@@ -105,8 +105,7 @@ final class OverlayController {
         } else if flags == .command, key == "s" {
             confirm(.saveAs)
         } else if flags.isEmpty, key == "e" {
-            Log.write("overlay: E (editor) arrives in M3")
-            NSSound.beep()
+            confirm(.editor)
         } else if flags.isEmpty, key == "p" {
             Log.write("overlay: P (pin) arrives in P1")
             NSSound.beep()

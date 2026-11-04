@@ -8,6 +8,8 @@ import ScreenshottCore
 final class Thumbnails {
     private var items: [ThumbnailItem] = []
     private static let perScreenLimit = 5
+    /// What a click does with the file: open it in the editor.
+    var onOpen: ((URL) -> Void)?
 
     /// Window numbers to leave out of the next capture.
     var windowNumbers: Set<Int> { Set(items.map(\.panel.windowNumber)) }
@@ -16,6 +18,7 @@ final class Thumbnails {
         guard let screen = screen ?? NSScreen.main else { return }
         let size = ThumbnailLayout.size(for: PixelSize(width: image.width, height: image.height), scale: scale)
         let item = ThumbnailItem(image: image, file: file, size: size, visibleFrame: screen.visibleFrame)
+        item.onOpen = onOpen
         item.onDismiss = { [weak self, weak item] in
             guard let self, let item else { return }
             items.removeAll { $0 === item }
@@ -46,6 +49,7 @@ final class ThumbnailItem {
     let size: CGSize
     let visibleFrame: CGRect
     var onDismiss: (() -> Void)?
+    var onOpen: ((URL) -> Void)?
 
     private let image: CGImage
     private var timer: Timer?
@@ -126,9 +130,9 @@ final class ThumbnailItem {
 
     // MARK: - Actions
 
-    /// Preview for now; the M3 editor takes over.
+    /// In the editor; in the default app if there is none.
     private func open() {
-        NSWorkspace.shared.open(file)
+        if let onOpen { onOpen(file) } else { NSWorkspace.shared.open(file) }
         dismiss()
     }
 

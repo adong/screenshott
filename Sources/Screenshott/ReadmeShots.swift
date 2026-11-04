@@ -121,5 +121,8 @@ extension AppDelegate {
         await ReadmeShots.photograph(window.frame.insetBy(dx: -40, dy: -40), of: screen, as: "settings.png", in: directory)
         window.level = .normal
         window.close()
+
+        // 4. The editor (EditorReadmeShots.swift).
+        await runEditorReadmeShots(on: screen, into: directory)
     }
 }

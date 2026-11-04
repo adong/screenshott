@@ -7,7 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let preferences = Preferences()
     private lazy var shortcuts = ShortcutCenter(preferences: preferences)
-    private lazy var delivery = Delivery(preferences: preferences)
+    /// Not private: the editor's README shots open editors through it.
+    private(set) lazy var delivery = Delivery(preferences: preferences)
     private var settings: SettingsWindowController?
 
     /// Not private, like `runAreaCapture`: ReadmeShots.swift drives them.
@@ -92,6 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Open in Editor…", action: #selector(openInEditor), keyEquivalent: "")
+            .target = self
         menu.addItem(withTitle: "Open Screenshots Folder", action: #selector(openArchive), keyEquivalent: "")
             .target = self
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -139,6 +142,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func grantPermission() { Permissions.showMissingScreenCaptureAlert() }
+
+    @objc private func openInEditor() { delivery.editors.chooseFile() }
+
+    /// Finder's Open With, or a PNG dropped on the Dock icon.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { delivery.editors.open(file: url) }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        delivery.editors.resolveUnsavedChanges() ? .terminateNow : .terminateCancel
+    }
 
     @objc private func openArchive() {
         try? FileManager.default.createDirectory(at: preferences.saveDirectory, withIntermediateDirectories: true)
@@ -237,7 +251,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             Log.write("capture area cancelled")
         }
-        _ = previousApp?.activate(options: [])
+        // The editor keeps the focus it just took.
+        if result?.action != .editor { _ = previousApp?.activate(options: []) }
         previousApp = nil
     }
 }
