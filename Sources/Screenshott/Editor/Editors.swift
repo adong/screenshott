@@ -32,11 +32,12 @@ final class Editors {
     }
 
     /// Opens a PNG, continuing its project if it was edited before.
-    func open(file url: URL) {
+    @discardableResult
+    func open(file url: URL) -> EditorWindowController? {
         if let open = controllers.first(where: { $0.file?.standardizedFileURL == url.standardizedFileURL }) {
             NSApp.activate()
             open.show()
-            return
+            return open
         }
         do {
             if let project = try store.load(forPNGNamed: url.lastPathComponent) {
@@ -48,11 +49,10 @@ final class Editors {
                     originals[id] = data
                 }
                 Log.write("editor reopened \(url.lastPathComponent): \(project.document.annotations.count) annotation(s)")
-                present(EditorWindowController(
+                return present(EditorWindowController(
                     document: project.document, images: images, originals: originals, file: url,
                     preferences: preferences, store: store
                 ))
-                return
             }
         } catch {
             Log.write("editor: project for \(url.lastPathComponent) unreadable (\(error)); opening the PNG itself")
@@ -60,10 +60,10 @@ final class Editors {
         guard let data = try? Data(contentsOf: url), let (image, scale) = ImageFile.load(data) else {
             Log.write("editor: can't read \(url.path)")
             NSSound.beep()
-            return
+            return nil
         }
         Log.write("editor opened \(url.lastPathComponent) \(image.width)x\(image.height) @\(Int(scale))x")
-        open(image, scale: scale, png: data, file: url)
+        return open(image, scale: scale, png: data, file: url)
     }
 
     /// "Open in Editor…": any image, with a picker that starts in the save folder.
@@ -76,6 +76,49 @@ final class Editors {
         open(file: url)
     }
 
+    // MARK: - Combine (M4)
+
+    /// Starts an area capture and says whether its overlay came up. Set by the app
+    /// delegate, which owns capturing.
+    var startAreaCapture: (() async -> Bool)?
+    /// The editor whose Add Capture was pressed: the next capture goes onto its canvas.
+    private weak var appendTarget: EditorWindowController?
+
+    /// Hides the editor so it isn't in the shot, then starts an area capture.
+    func addCapture(to controller: EditorWindowController) {
+        guard let startAreaCapture else { return NSSound.beep() }
+        appendTarget = controller
+        controller.window?.orderOut(nil)
+        Task {
+            // Let the window server take the editor off screen before the freeze.
+            try? await Task.sleep(for: .milliseconds(150))
+            if await !startAreaCapture() { captureCancelled() }
+        }
+    }
+
+    /// The thumbnail's Add Capture: opens that capture, then adds to it.
+    func addCapture(toFile url: URL) {
+        if let controller = open(file: url) { addCapture(to: controller) }
+    }
+
+    /// Hands a finished capture to the editor waiting for one. False when none is.
+    func append(_ image: CGImage, scale: CGFloat) -> Bool {
+        guard let target = appendTarget else { return false }
+        appendTarget = nil
+        target.append(image, scale: scale)
+        NSApp.activate()
+        target.show()
+        return true
+    }
+
+    /// The overlay closed without a capture: the editor comes back as it was.
+    func captureCancelled() {
+        guard let target = appendTarget else { return }
+        appendTarget = nil
+        NSApp.activate()
+        target.show()
+    }
+
     /// Before quitting: each editor with unsaved changes asks. False if one was cancelled.
     func resolveUnsavedChanges() -> Bool {
         controllers.allSatisfy { $0.resolveUnsavedChanges() }
@@ -85,6 +128,7 @@ final class Editors {
     private func present(_ controller: EditorWindowController) -> EditorWindowController {
         controllers.append(controller)
         controller.onClose = { [weak self] closed in self?.closed(closed) }
+        controller.onAddCapture = { [weak self] editor in self?.addCapture(to: editor) }
         EditorMenu.install()
         if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
         NSApp.activate()
@@ -112,6 +156,7 @@ enum EditorMenu {
             item("Quit Screenshott", #selector(NSApplication.terminate(_:)), "q"),
         ]))
         main.addItem(submenu("File", [
+            item("Add Capture", #selector(EditorWindowController.addCapture(_:)), "A"),
             item("Save", #selector(EditorWindowController.saveDocument(_:)), "s"),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),
         ]))

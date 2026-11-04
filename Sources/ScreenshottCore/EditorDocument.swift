@@ -76,11 +76,25 @@ public struct EditorDocument: Codable, Hashable, Sendable {
     public var annotations: [Annotation] = []
     /// Fills whatever part of the canvas no capture covers.
     public var background = RGBAColor.white
+    /// Where combined captures go (M4). Change it through `setLayout(_:)`.
+    public private(set) var layout: CombineLayout
 
     /// A canvas holding one capture.
     public init(imageSize: PixelSize, scale: Double, imageID: UUID = UUID()) {
         self.scale = scale
         images = [CanvasImage(id: imageID, pixelSize: imageSize)]
+        layout = .standard(scale: scale)
+    }
+
+    /// Projects saved before Combine have no layout; they get the standard one.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        scale = try container.decode(Double.self, forKey: .scale)
+        images = try container.decode([CanvasImage].self, forKey: .images)
+        annotations = try container.decode([Annotation].self, forKey: .annotations)
+        background = try container.decode(RGBAColor.self, forKey: .background)
+        layout = try container.decodeIfPresent(CombineLayout.self, forKey: .layout) ?? .standard(scale: scale)
     }
 
     /// The flattened image's size: everything the captures cover, from (0, 0).
@@ -105,12 +119,44 @@ public struct EditorDocument: Codable, Hashable, Sendable {
     }
 
     /// Crops capture `id` to `rect`, in the capture's own pixels; nothing happens if
-    /// `rect` misses it. Annotations drawn on it stay on the same pixels.
+    /// `rect` misses it. Annotations drawn on it stay on the same pixels, and the
+    /// other captures close up around its new size.
     public mutating func crop(_ id: UUID, to rect: PixelRect) {
         guard let index = images.firstIndex(where: { $0.id == id }),
               let rect = rect.clamped(to: images[index].pixelSize)
         else { return }
-        moveImages { $0[index].crop = rect }
+        let layout = layout
+        moveImages {
+            $0[index].crop = rect
+            layout.place(&$0)
+        }
+    }
+
+    /// Combine: adds a capture after the others (decision 3).
+    public mutating func append(imageOf size: PixelSize, id: UUID = UUID()) {
+        let layout = layout
+        moveImages {
+            $0.append(CanvasImage(id: id, pixelSize: size))
+            layout.place(&$0)
+        }
+    }
+
+    /// Takes a capture off the canvas with the annotations drawn on it. The last
+    /// capture stays.
+    public mutating func removeImage(_ id: UUID) {
+        guard images.count > 1, images.contains(where: { $0.id == id }) else { return }
+        annotations.removeAll { $0.anchor == id }
+        let layout = layout
+        moveImages {
+            $0.removeAll { $0.id == id }
+            layout.place(&$0)
+        }
+    }
+
+    /// Lays the captures out again; their annotations move with them.
+    public mutating func setLayout(_ layout: CombineLayout) {
+        self.layout = layout
+        moveImages { layout.place(&$0) }
     }
 
     /// What the crop tool shows: capture `id` alone and uncropped at the origin, with

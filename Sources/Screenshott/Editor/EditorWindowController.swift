@@ -11,12 +11,17 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     /// The PNG this document saves to.
     private(set) var file: URL?
     var onClose: ((EditorWindowController) -> Void)?
+    /// Add Capture was pressed (M4).
+    var onAddCapture: ((EditorWindowController) -> Void)?
 
     private let preferences: Preferences
     private let store: ProjectStore
     private let canvas: CanvasView
     private let scrollView = NSScrollView()
     let toolbar: EditorToolbar
+    private let combine: CombineControls
+    /// Sized and centered once; hiding for Add Capture keeps the zoom and position.
+    private var placed = false
     /// Each capture's original PNG bytes, for the project folder. A capture opened from
     /// a file reuses its bytes; others are encoded on the first save.
     private var originals: [UUID: Data]
@@ -40,6 +45,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         window.minSize = CGSize(width: 720, height: 360)
         window.tabbingMode = .disallowed
         toolbar = EditorToolbar(model: model)
+        combine = CombineControls(model: model)
+        toolbar.insert([combine])
         super.init(window: window)
 
         let accessory = NSTitlebarAccessoryViewController()
@@ -71,32 +78,40 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// Sizes the window to the canvas (shrunk to fit the screen under the mouse) and
-    /// brings it forward.
+    /// Brings the window forward, sized to the canvas the first time.
     func show() {
         guard let window else { return }
-        if !window.isVisible {
-            let screen = ScreenCapturer.screenUnderMouse ?? NSScreen.main
-            let visible = screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-            let canvasSize = canvas.frame.size
-            let chrome = window.frameRect(forContentRect: .zero).height + EditorToolbar.height
-            let fit = min(1, visible.width * 0.85 / max(canvasSize.width, 1), (visible.height * 0.85 - chrome) / max(canvasSize.height, 1))
-            let content = CGSize(
-                width: max(canvasSize.width * fit + 2, window.minSize.width),
-                height: max(canvasSize.height * fit + 2, window.minSize.height - chrome)
-            )
-            window.setContentSize(content)
-            scrollView.magnification = fit
-            let frame = window.frame
-            window.setFrameOrigin(CGPoint(x: visible.midX - frame.width / 2, y: visible.midY - frame.height / 2))
+        if !placed {
+            placed = true
+            fitToCanvas(on: ScreenCapturer.screenUnderMouse ?? NSScreen.main)
         }
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(canvas)
     }
 
+    /// Sizes the window to show the whole canvas at 100%, or smaller to fit in 85% of
+    /// the screen, and centers it there.
+    private func fitToCanvas(on screen: NSScreen?) {
+        guard let window else { return }
+        let visible = screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let canvasSize = canvas.frame.size
+        let chrome = window.frameRect(forContentRect: .zero).height + EditorToolbar.height
+        let fit = min(
+            1, visible.width * 0.85 / max(canvasSize.width, 1), (visible.height * 0.85 - chrome) / max(canvasSize.height, 1)
+        )
+        window.setContentSize(CGSize(
+            width: max(canvasSize.width * fit + 2, window.minSize.width),
+            height: max(canvasSize.height * fit + 2, window.minSize.height - chrome)
+        ))
+        scrollView.magnification = fit
+        let frame = window.frame
+        window.setFrameOrigin(CGPoint(x: visible.midX - frame.width / 2, y: visible.midY - frame.height / 2))
+    }
+
     private func modelChanged() {
         canvas.modelChanged()
         toolbar.update()
+        combine.update()
         window?.isDocumentEdited = model.isDirty
     }
 
@@ -164,6 +179,32 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - Menu actions
 
     @objc func saveDocument(_ sender: Any?) { save() }
+
+    /// Combine: the next capture goes onto this canvas (decision 3).
+    @objc func addCapture(_ sender: Any?) {
+        canvas.endEditing()
+        if canvas.isCropping { canvas.applyCrop() }
+        onAddCapture?(self)
+    }
+
+    /// Appends a capture, resampled to this canvas's scale if it came from a display
+    /// with another one, and resizes the window around the bigger canvas.
+    func append(_ image: CGImage, scale: CGFloat) {
+        let document = model.document
+        let factor = document.scale / scale
+        let size = PixelSize(
+            width: max(1, Int((CGFloat(image.width) * factor).rounded())),
+            height: max(1, Int((CGFloat(image.height) * factor).rounded()))
+        )
+        guard let pixels = ImageScaling.resized(image, to: size) else { return NSSound.beep() }
+        let id = UUID()
+        model.addImage(pixels, id: id)
+        model.edit("Add Capture") { $0.append(imageOf: size, id: id) }
+        model.selection = nil
+        model.selectedImage = nil
+        Log.write("editor added capture \(size.width)x\(size.height), \(model.document.images.count) on the canvas")
+        fitToCanvas(on: window?.screen ?? ScreenCapturer.screenUnderMouse)
+    }
 
     @objc func copy(_ sender: Any?) {
         canvas.endEditing()

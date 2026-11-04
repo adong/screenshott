@@ -54,6 +54,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .captureArea: { [weak self] in self?.captureArea() },
             .captureFullScreen: { [weak self] in self?.captureFullScreen() },
         ])
+        delivery.editors.startAreaCapture = { [weak self] in
+            guard let self else { return false }
+            await runAreaCapture(pressedAt: ContinuousClock.now)
+            return overlay != nil
+        }
         Permissions.requestScreenCaptureIfNeeded()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = Self.menuBarGlyph
@@ -250,6 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             )
         } else {
             Log.write("capture area cancelled")
+            delivery.editors.captureCancelled()
         }
         // The editor keeps the focus it just took.
         if result?.action != .editor { _ = previousApp?.activate(options: []) }

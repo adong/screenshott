@@ -75,6 +75,9 @@ final class EditorModel {
     var stroke = StrokeSize.medium { didSet { changed() } }
     var cover = Annotation.Cover.mosaic { didSet { changed() } }
     var selection: UUID? { didSet { if selection != oldValue { changed() } } }
+    /// A capture picked with the select tool, so Delete can take it off a combined
+    /// canvas. Never set together with `selection`.
+    var selectedImage: UUID? { didSet { if selectedImage != oldValue { changed() } } }
 
     /// What the canvas and toolbar do when anything here changes.
     var onChange: (() -> Void)?
@@ -158,6 +161,7 @@ final class EditorModel {
                 model.document = snapshot
                 model.registerUndo(restoring: current, name: name)
                 if let selection = model.selection, snapshot.annotation(selection) == nil { model.selection = nil }
+                if let image = model.selectedImage, snapshot.image(image) == nil { model.selectedImage = nil }
                 model.changed()
             }
         }

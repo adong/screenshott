@@ -10,6 +10,8 @@ final class Thumbnails {
     private static let perScreenLimit = 5
     /// What a click does with the file: open it in the editor.
     var onOpen: ((URL) -> Void)?
+    /// The hover "+" button: open it in the editor and add the next capture (M4).
+    var onAddCapture: ((URL) -> Void)?
 
     /// Window numbers to leave out of the next capture.
     var windowNumbers: Set<Int> { Set(items.map(\.panel.windowNumber)) }
@@ -19,6 +21,7 @@ final class Thumbnails {
         let size = ThumbnailLayout.size(for: PixelSize(width: image.width, height: image.height), scale: scale)
         let item = ThumbnailItem(image: image, file: file, size: size, visibleFrame: screen.visibleFrame)
         item.onOpen = onOpen
+        item.onAddCapture = onAddCapture
         item.onDismiss = { [weak self, weak item] in
             guard let self, let item else { return }
             items.removeAll { $0 === item }
@@ -50,6 +53,7 @@ final class ThumbnailItem {
     let visibleFrame: CGRect
     var onDismiss: (() -> Void)?
     var onOpen: ((URL) -> Void)?
+    var onAddCapture: ((URL) -> Void)?
 
     private let image: CGImage
     private var timer: Timer?
@@ -80,6 +84,7 @@ final class ThumbnailItem {
         view.onClick = { [weak self] in self?.open() }
         view.onDragEnded = { [weak self] delivered in if delivered { self?.dismiss() } }
         view.onClose = { [weak self] in self?.dismiss() }
+        view.onAddCapture = { [weak self] in self?.addCapture() }
         view.menu = menu()
         view.file = file
         panel.contentView = view
@@ -133,6 +138,12 @@ final class ThumbnailItem {
     /// In the editor; in the default app if there is none.
     private func open() {
         if let onOpen { onOpen(file) } else { NSWorkspace.shared.open(file) }
+        dismiss()
+    }
+
+    private func addCapture() {
+        guard let onAddCapture else { return }
+        onAddCapture(file)
         dismiss()
     }
 
@@ -194,10 +205,12 @@ final class ThumbnailView: NSView, NSDraggingSource {
     var onClick: (() -> Void)?
     var onDragEnded: ((Bool) -> Void)?
     var onClose: (() -> Void)?
+    var onAddCapture: (() -> Void)?
     var file: URL?
 
     private let image: CGImage
     private let closeButton = NSButton()
+    private let addButton = NSButton()
     private var pressPoint: CGPoint?
     private var dragging = false
 
@@ -227,6 +240,16 @@ final class ThumbnailView: NSView, NSDraggingSource {
         closeButton.isHidden = true
         addSubview(closeButton)
 
+        addButton.image = NSImage(systemSymbolName: "plus.circle.fill", accessibilityDescription: "Add Capture")
+        addButton.isBordered = false
+        addButton.contentTintColor = .white
+        addButton.toolTip = "Add Capture: combine this with your next capture"
+        addButton.target = self
+        addButton.action = #selector(add)
+        addButton.frame = CGRect(x: bounds.width - 24, y: bounds.height - 24, width: 20, height: 20)
+        addButton.isHidden = true
+        addSubview(addButton)
+
         addTrackingArea(NSTrackingArea(
             rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self
         ))
@@ -238,11 +261,13 @@ final class ThumbnailView: NSView, NSDraggingSource {
 
     override func mouseEntered(with event: NSEvent) {
         closeButton.isHidden = false
+        addButton.isHidden = onAddCapture == nil
         onHover?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
         closeButton.isHidden = true
+        addButton.isHidden = true
         onHover?(false)
     }
 
@@ -268,6 +293,8 @@ final class ThumbnailView: NSView, NSDraggingSource {
     }
 
     @objc private func close() { onClose?() }
+
+    @objc private func add() { onAddCapture?() }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         context == .outsideApplication ? .copy : []

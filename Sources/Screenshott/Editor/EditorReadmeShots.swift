@@ -91,23 +91,71 @@ extension AppDelegate {
         editorWindow.orderFrontRegardless()
         try? await Task.sleep(for: .milliseconds(900))
         await ReadmeShots.photograph(editorWindow.frame.insetBy(dx: -40, dy: -40), of: screen, as: "editor.png", in: directory)
+
+        // 5. Combine, through the real Add Capture path: the editor steps aside, the
+        // overlay opens, and its staged selection — over a second made-up card in the
+        // middle of the screen — lands on the canvas below the first capture.
+        model.selection = nil
+        let confirmation = ReadmeCard.confirmation
+        let staged = CGPoint(x: screen.frame.midX, y: screen.frame.maxY - screen.frame.height * 0.45)
+        window.contentView = confirmation
+        window.setFrame(CGRect(
+            x: staged.x - confirmation.frame.width / 2, y: staged.y - confirmation.frame.height / 2,
+            width: confirmation.frame.width, height: confirmation.frame.height
+        ), display: true)
+        window.orderFrontRegardless()
+        editor.addCapture(nil)
+        for _ in 0..<60 where overlay == nil { try? await Task.sleep(for: .milliseconds(50)) }
+        guard let overlay, overlay.stageForReadme() != nil else {
+            Log.write("readme-shots: Add Capture's overlay did not open")
+            window.orderOut(nil)
+            model.markSaved()
+            editorWindow.close()
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        overlay.confirm(.standard)
+        window.orderOut(nil)
+        let gap = Int((16 * scale).rounded())
+        model.edit("README") { $0.setLayout(CombineLayout(direction: .vertical, alignment: .center, spacing: gap)) }
+        try? await Task.sleep(for: .milliseconds(900))
+        await ReadmeShots.photograph(editorWindow.frame.insetBy(dx: -40, dy: -40), of: screen, as: "combine.png", in: directory)
         model.markSaved()
         editorWindow.close()
     }
 }
 
-/// A checkout form that never existed: something worth pointing at and redacting.
+/// Forms that never existed: something worth pointing at and redacting.
 @MainActor
 private final class ReadmeCard: NSView {
-    private static let rows = [
-        ("Name", "Jane Appleseed"),
-        ("Email", "jane.appleseed@example.com"),
-        ("Card", "4242 4242 4242 4242"),
-        ("Total", "$48.00"),
-    ]
+    private let title: String
+    private let rows: [(String, String)]
+    private let button: (title: String, color: NSColor)
     private static let valueFont = NSFont.systemFont(ofSize: 15, weight: .medium)
 
-    init() { super.init(frame: CGRect(x: 0, y: 0, width: 420, height: 310)) }
+    init(
+        title: String = "Checkout",
+        rows: [(String, String)] = [
+            ("Name", "Jane Appleseed"),
+            ("Email", "jane.appleseed@example.com"),
+            ("Card", "4242 4242 4242 4242"),
+            ("Total", "$48.00"),
+        ],
+        button: (title: String, color: NSColor) = ("Pay now", NSColor(red: 0.04, green: 0.45, blue: 0.95, alpha: 1))
+    ) {
+        self.title = title
+        self.rows = rows
+        self.button = button
+        super.init(frame: CGRect(x: 0, y: 0, width: 420, height: 310))
+    }
+
+    static var confirmation: ReadmeCard {
+        ReadmeCard(
+            title: "Order confirmed",
+            rows: [("Order", "#48213"), ("Arrives", "Thursday, Nov 6"), ("Paid", "$48.00"), ("Ship to", "Cupertino, CA")],
+            button: ("Track package", NSColor(red: 0.13, green: 0.65, blue: 0.32, alpha: 1))
+        )
+    }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
@@ -116,7 +164,7 @@ private final class ReadmeCard: NSView {
     private func rowY(_ row: Int) -> Double { 80 + Double(row) * 42 }
 
     func valueRect(row: Int) -> CGRect {
-        let size = (Self.rows[row].1 as NSString).size(withAttributes: [.font: Self.valueFont])
+        let size = (rows[row].1 as NSString).size(withAttributes: [.font: Self.valueFont])
         return CGRect(x: 120, y: rowY(row), width: ceil(size.width), height: ceil(size.height))
     }
 
@@ -127,10 +175,10 @@ private final class ReadmeCard: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.white.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 14, yRadius: 14).fill()
-        ("Checkout" as NSString).draw(at: CGPoint(x: 28, y: 26), withAttributes: [
+        (title as NSString).draw(at: CGPoint(x: 28, y: 26), withAttributes: [
             .font: NSFont.systemFont(ofSize: 24, weight: .bold), .foregroundColor: NSColor(white: 0.1, alpha: 1),
         ])
-        for (row, (label, value)) in Self.rows.enumerated() {
+        for (row, (label, value)) in rows.enumerated() {
             (label as NSString).draw(at: CGPoint(x: 28, y: rowY(row)), withAttributes: [
                 .font: NSFont.systemFont(ofSize: 15), .foregroundColor: NSColor(white: 0.45, alpha: 1),
             ])
@@ -138,9 +186,9 @@ private final class ReadmeCard: NSView {
                 .font: Self.valueFont, .foregroundColor: NSColor(white: 0.1, alpha: 1),
             ])
         }
-        NSColor(red: 0.04, green: 0.45, blue: 0.95, alpha: 1).setFill()
+        button.color.setFill()
         NSBezierPath(roundedRect: buttonRect, xRadius: 9, yRadius: 9).fill()
-        let title = "Pay now" as NSString
+        let title = button.title as NSString
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 16, weight: .semibold), .foregroundColor: NSColor.white]
         let titleSize = title.size(withAttributes: attributes)
         title.draw(at: CGPoint(x: buttonRect.midX - titleSize.width / 2, y: buttonRect.midY - titleSize.height / 2), withAttributes: attributes)

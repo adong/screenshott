@@ -30,12 +30,18 @@ final class Delivery {
         self.preferences = preferences
         editors = Editors(preferences: preferences)
         thumbnails.onOpen = { [editors] file in editors.open(file: file) }
+        thumbnails.onAddCapture = { [editors] file in editors.addCapture(toFile: file) }
     }
 
     /// `log` starts the log line (what was captured and how long that took); this adds
     /// the encode and delivery timings and the file name.
     func deliver(_ image: CGImage, scale: CGFloat, on screen: NSScreen?, action: Action, log: String) {
         if preferences.playSound { Self.shutterSound?.play() }
+        // Add Capture (M4): this one goes onto the waiting editor's canvas instead.
+        if editors.append(image, scale: scale) {
+            Log.write("\(log) added to the editor")
+            return
+        }
         var image = image, scale = scale
         if !preferences.keepRetinaResolution, scale > 1, let logical = ImageScaling.downscaled(image, by: scale) {
             (image, scale) = (logical, 1)

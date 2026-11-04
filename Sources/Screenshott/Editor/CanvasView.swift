@@ -116,6 +116,11 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
             drawCrop(crop, in: context)
         } else if let selected = model.selectedAnnotation, selected.id != editing?.id {
             drawSelection(selected, in: context)
+        } else if let id = model.selectedImage, let image = document.image(id) {
+            let unit = 1 / magnification
+            context.setStrokeColor(NSColor.controlAccentColor.cgColor)
+            context.setLineWidth(3 * unit)
+            context.stroke(viewRect(image.frame.cgRect).insetBy(dx: 1.5 * unit, dy: 1.5 * unit))
         }
     }
 
@@ -210,6 +215,7 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
         let document = model.document
         if let hit = document.hit(p, tolerance: tolerance, selected: model.selection),
            let annotation = document.annotation(hit.id) {
+            model.selectedImage = nil
             model.selection = hit.id
             if event.clickCount == 2, annotation.kind == .text {
                 gesture = nil
@@ -220,7 +226,10 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
             return
         }
         model.selection = nil
+        model.selectedImage = nil
         guard let kind = model.tool.kind else {
+            // The select tool picks a capture of a combined canvas, for Delete.
+            if document.images.count > 1 { model.selectedImage = document.image(at: p)?.id }
             gesture = nil
             return
         }
@@ -355,6 +364,7 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
                 cancelCrop()
             } else {
                 model.selection = nil
+                model.selectedImage = nil
             }
             return
         case kVK_Return, kVK_ANSI_KeypadEnter:
@@ -424,9 +434,16 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
     }
 
     private func deleteSelection() {
-        guard crop == nil, let selected = model.selectedAnnotation else { return NSSound.beep() }
-        model.selection = nil
-        model.edit("Delete") { $0.remove(selected.id) }
+        guard crop == nil else { return NSSound.beep() }
+        if let selected = model.selectedAnnotation {
+            model.selection = nil
+            model.edit("Delete") { $0.remove(selected.id) }
+        } else if let image = model.selectedImage, model.document.images.count > 1 {
+            model.selectedImage = nil
+            model.edit("Remove Capture") { $0.removeImage(image) }
+        } else {
+            NSSound.beep()
+        }
     }
 
     // MARK: - Menu actions (ahead of NSWindow's own undo in the responder chain)
@@ -454,7 +471,7 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
             item.title = activeUndoManager.redoMenuItemTitle
             return activeUndoManager.canRedo
         case #selector(delete(_:)):
-            return model.selection != nil
+            return model.selection != nil || model.selectedImage != nil
         default:
             return true
         }
@@ -554,6 +571,7 @@ final class CanvasView: NSView, NSTextViewDelegate, NSMenuItemValidation {
         selection.selection = image.crop
         crop = CropSession(imageID: id, preview: preview, selection: selection)
         model.selection = nil
+        model.selectedImage = nil
         updateSize()
         needsDisplay = true
     }

@@ -182,3 +182,18 @@ public enum CanvasRenderer {
         context.restoreGState()
     }
 }
+
+extension ImageScaling {
+    /// `image` redrawn at exactly `size` pixels, up or down — a 1x capture joining a
+    /// 2x canvas is doubled so both show at the same size.
+    public static func resized(_ image: CGImage, to size: PixelSize) -> CGImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        if size == PixelSize(width: image.width, height: image.height) { return image }
+        guard let context = CanvasRenderer.bitmap(width: size.width, height: size.height, space: image.colorSpace) else {
+            return nil
+        }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: size.width, height: size.height))
+        return context.makeImage()
+    }
+}
