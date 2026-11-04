@@ -20,6 +20,8 @@ final class Delivery {
     )
 
     let thumbnails = Thumbnails()
+    /// The bench swaps in a private pasteboard so it never touches the clipboard.
+    var pasteboard = NSPasteboard.general
     private let preferences: Preferences
 
     init(preferences: Preferences) {
@@ -36,7 +38,10 @@ final class Delivery {
         }
         let clock = ContinuousClock()
         let start = clock.now
-        guard let png = PNGEncoder.data(from: image, scale: scale) else {
+        let encode = Perf.begin(.encode)
+        let png = PNGEncoder.data(from: image, scale: scale)
+        Perf.end(encode)
+        guard let png else {
             Log.write("\(log) encode failed")
             NSSound.beep()
             return
@@ -46,9 +51,11 @@ final class Delivery {
 
         switch action {
         case .standard:
+            let copySave = Perf.begin(.copySave)
             if preferences.copyToClipboard { copy(png) }
             do {
                 let url = try save(png)
+                Perf.end(copySave)
                 Log.write(String(
                     format: "%@ %@ copy+save=%.1fms %@",
                     log, timings, (clock.now - encoded).milliseconds, url.lastPathComponent
@@ -67,7 +74,6 @@ final class Delivery {
     }
 
     private func copy(_ png: Data) {
-        let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setData(png, forType: .png)
     }

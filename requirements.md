@@ -107,7 +107,7 @@
 | **M4 拼图** | 编辑器 / 缩略图上"添加截图"；自动排列 | 多张拼一张 |
 | **M5 长截图** | 实时框选；自动滚（辅助功能权限）+ 手动滚；重叠匹配拼接；固定头尾去重；进度预览；30,000 px 上限 | 通过长截图验收清单 |
 | **M7 Workflows**（#10：只开"截完之后"） | `.screenshottworkflow` 格式、安装与确认、script / shortcut / open-url 步骤、stdout JSON 协议、脚本放弃责任进程（不继承屏幕录制 / 辅助功能授权）、3 个示例 workflow | 别人能写、能分享、能装自己的工作流 |
-| **M6 打磨** | 内置计时（`ContinuousClock` + `os_signpost`）+ `--bench` 模式连截 N 次出 p50 / p95，对标 17 ms / 165 ms，热点用 `sample` 查；开机启动；`iconutil` 做图标 | 能替代 Shottr 当主力 |
+| **M6 打磨** 🔨 2026-11-03 抓图这半边完成：`--bench` + `os_signpost`，内容列表缓存，`captureImage(in:)`；⌘⇧2 → 遮罩上屏 119 → 74 ms、⌘⇧1 → 复制 + 存档 133 → 110 ms（p50，见"M6 性能记录"）。Delivery 那半边（编码挪出主线程、剪贴板延迟提供）等 M2 合并后做。开机启动（设置里）、图标（`make-icon.sh`）已有 | 内置计时（`ContinuousClock` + `os_signpost`）+ `--bench` 模式连截 N 次出 p50 / p95，对标 17 ms / 165 ms，热点用 `sample` 查；开机启动；`iconutil` 做图标 | 能替代 Shottr 当主力 |
 
 ## M1 交互默认（2026-11-02，Alan 可推翻）
 
@@ -118,6 +118,40 @@
 - **多屏**：每块屏一个遮罩；在另一块屏按下会清掉原来那块屏上的选区（决策 4a）。按物理像素裁（决策 4b），PNG 按 72 × 缩放倍数写 DPI。
 - **焦点**：遮罩出现时 Screenshott 会拿走焦点（只有前台 app 能把鼠标指针换成十字），关掉遮罩后把焦点还给原来的 app。
 - **缩略图**：截完出现在那块屏右下角，6 秒后自动消失（鼠标停在上面时不消失），多张往上叠，每屏最多 5 张。单击用预览打开（M3 之后改成进编辑器），拖出去 = 拖文件，右键有拷贝 / 在 Finder 中显示 / 打开 / 移到废纸篓。⌘⇧1 全屏截图也会出缩略图。自己的缩略图不会被截进下一张。
+
+## M6 性能记录（2026-11-03）
+
+测法：`scripts/bench.sh 20`（`--bench N` 启动模式，不碰键鼠，同一轮里交替跑每条路径，所以前后对比是同样的条件）。M3 Max，外接 2560×1440 @1x，macOS 26.7.1，截的是真实屏幕内容。单位 ms，p50 / p95，n = 20。原始结果在 `dist/bench/`（不进 git）。"M1"一栏是旧路径（每次都查 `SCShareableContent` + content filter 截图），在同一次运行里测的。
+
+| 阶段 | M1 | M6 | 怎么做到的 |
+|---|---|---|---|
+| 内容列表 | 27 / 37 | 0 / 0 | 没有缩略图时根本不需要；有缩略图时用缓存 |
+| 抓图 | 52 / 61 | 35 / 44 | `SCScreenshotManager.captureImage(in:)`（macOS 15.2+） |
+| ⌘⇧2 → 遮罩上屏 | 119 / 131 | **74 / 84** | 上述两项；"上屏" = WindowServer 报告遮罩窗口已 on screen，下一次刷新就显示 |
+| ⌘⇧2 → 遮罩上屏，有缩略图时 | 119 / 131 | 98 / 111 | 走缓存的 content filter 路径（要把缩略图排除掉） |
+| ⌘⇧2，空闲 10 s 之后 | — | 81 / 82（n = 3） | |
+| ⌘⇧1 → 复制 + 存档 | 133 / 146 | **110 / 121** | 剩下的大头是 PNG 编码（54–72），在 Delivery |
+
+对标 Shottr 公布的数字：抓图 17 ms —— 我们 35 ms，还慢一倍；显示 ~165 ms —— 我们遮罩 74 ms 上屏。
+
+**查到的（`sample` + bench check）：**
+
+- **热点**：主线程最大的一块是 PNG 编码（ImageIO → libpng → zlib `deflate`）。内容列表的时间主要花在客户端给每个窗口建 `SCWindow` / `SCRunningApplication`。`captureImage(in:)` 直接走 SkyLight 的硬件截屏（`SLSHWCaptureDesktopProxying`），不建 stream，所以快。
+- **缓存为什么成立**：截图只需要每块屏的 `SCDisplay`，和我们自己缩略图的 `SCWindow`（要排除）。别的 app 的窗口不影响：display filter 会截到查询之后才打开的窗口（bench check 用一个查询后才打开的洋红窗口验证过）。缓存失效：显示器变化、唤醒、新缩略图出现（`Thumbnails.show` 里预取）、要排除的窗口不在缓存里（当场重查）。失败就退回 M1 的路径。
+- **`captureImage(in:)`**：不能排除窗口，所以只在没有缩略图时用。它没有光标开关；bench 拿"带光标 / 不带光标"两张 filter 截图做对照，确认 macOS 26.7 上它不画光标。它自己决定输出尺寸，所以有尺寸校验：不对就退回缓存路径，这次运行里不再用它。**Retina 屏上待测**。
+- **macOS 26 的 `captureScreenshot(rect:)`** 更慢（54 / 63），第一次跑时还连续报 -3811（`SCStreamErrorInternalError`），只留在 bench 里对比。
+- **`captureImage(in:)` 的图第一次读像素更贵**：同样编 PNG，它的图 72 ms，filter 的图 54 ms。同一张图编第二次只要 35 ms，所以第一次多出来的约 19 ms（rect 图约 36 ms）是把像素读回来。抓图省下的时间有一部分挪进了编码。
+- **遮罩**：从我们的代码跑完（"shown"，52）到 WindowServer 报告上屏（74）还有约 21 ms：CA 提交，加上 14 MB 的图交给 WindowServer。可以试试给 layer 直接用 IOSurface（零拷贝）—— 那是 M1 遮罩的代码，这次没动。
+
+**Delivery 那边的想法（没实现：M2 正在把 Delivery 改成动作接口，等它合并）：**
+
+| 想法 | 量到的 | 预计 |
+|---|---|---|
+| 编码挪出主线程 | 全屏 PNG 编码 54–72 ms，全在主线程，是 ⌘⇧1 最大的一段 | "到存档"不变短，但主线程空出来：缩略图只要 `CGImage` 不要 PNG（文件名可以先定），能早约 60 ms 出现；紧接着的下一次热键也不用排队 |
+| 剪贴板延迟提供（`NSPasteboardItem` + data provider） | 剪贴板现在要等编码完 | ⌘⇧1 → 剪贴板可用 ≈ 抓图 ≈ 38 ms（现在 110）；别的 app 粘贴时才要 PNG，等后台编码完再给。要验证：app 退出前没被粘贴的话，AppKit 会不会先把承诺的数据要走 |
+| 剪贴板先放 TIFF | 不压缩 2.2 ms，但 14.4 MB（PNG 1.1 MB） | 可以作为立即可用的类型，PNG 延迟提供；14 MB 进剪贴板服务本身要多少时间待测 |
+| 换 PNG 滤波 | `FILTER_NONE` 33 ms（只快 2 ms，大 7%）；`FILTER_SUB` 46 ms（更慢） | 不改，用 ImageIO 默认 |
+| 后台存档 | 复制 + 写文件只要 1.4 ms | 单独挪没意义，跟编码一起挪 |
 
 ## 开发备注
 
@@ -130,6 +164,7 @@
 - **签名证书**：钥匙串里已有自签名证书 "NoteTaker Local Dev"（另一个项目建的）。`bundle.sh` 找不到 "Screenshott Dev" 时会自动用它，TCC 授权照样能跨重编保留。想分开就建一个 "Screenshott Dev"，脚本会优先用。
 - **Shottr 冲突**：本机装了 Shottr，默认占 ⌘⇧1 / ⌘⇧2。测 Screenshott 时先退出 Shottr，或者改掉它的热键。注册失败时菜单里会显示"⌘⇧1 is taken by another app"。
 - **日志**：`~/Library/Logs/Screenshott.log`，每次截图记录 list / grab / encode / copy+save 各段耗时，M6 对标 17 ms 用。
+- **基准（M6）**：`scripts/bench.sh [N] [--sample]` 跑 `--bench N`，结果打印出来并存到 `dist/bench/`。截图进临时文件夹和私有剪贴板，跑完删掉，不出声、不出缩略图，不碰 `~/Pictures/Screenshott` 和剪贴板。跑的时候不能用 Screenshott：打开菜单栏菜单会卡住所有 MainActor 任务（结果会标 `bench disturbed`）；`bundle.sh`、`bench.sh`、别的会话的自测都会按名字退出正在跑的 Screenshott，这个机器上几个会话一起测的时候要先说好。`--sample` 每毫秒采样一次，会拖慢 app，那次的数字不能比。各阶段也是 `os_signpost` 区间（subsystem `com.adong.Screenshott`），不落盘，实时看：`log stream --signpost --predicate 'subsystem == "com.adong.Screenshott"'`。
 - **SwiftUI 不能用 `@State`**：这个 SDK 里 `@State`（还有 `@Entry`、`@Previewable`）是宏，宏插件 `SwiftUIMacros` 只随 Xcode 发，Command Line Tools 里没有，编译直接报 "plugin for module 'SwiftUIMacros' not found"。视图自己的状态放进 `ObservableObject` + `@Published`（属性包装器，不是宏）；`@Observable` 也能用，CLT 带了 `ObservationMacros`。
 - **UI 文案**：先用英文（以后做产品要本地化，英文当基准语言）。Alan 可推翻。
 
