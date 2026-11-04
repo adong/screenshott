@@ -23,6 +23,10 @@ private func shortcut(_ keyCode: Int, _ modifiers: Int, _ key: String = "X") -> 
 @Test func defaultsAreValid() {
     #expect(Shortcut.captureArea.problem(among: ["Capture Full Screen": .captureFullScreen]) == nil)
     #expect(Shortcut.captureFullScreen.problem(among: ["Capture Area": .captureArea]) == nil)
+    #expect(Shortcut.captureScrolling.problem(
+        among: ["Capture Area": .captureArea, "Capture Full Screen": .captureFullScreen]
+    ) == nil)
+    #expect(Shortcut.captureScrolling.displayString == "⌥⇧⌘2")
 }
 
 @Test func oneModifierIsNotEnough() {

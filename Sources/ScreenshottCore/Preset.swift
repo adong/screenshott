@@ -43,9 +43,7 @@ public enum PresetID: String, CaseIterable, Identifiable, Sendable {
                    ))
         case .captureScrolling:
             Preset(id: self, title: "Scrolling Capture", screen: .live, selection: .scrolling, defaultAction: .standard,
-                   defaultShortcut: Shortcut(
-                       keyCode: UInt32(kVK_ANSI_2), modifiers: UInt32(cmdKey | shiftKey | optionKey), key: "2"
-                   ))
+                   defaultShortcut: .captureScrolling)
         case .liveArea:
             Preset(id: self, title: "Live Area", screen: .live, selection: .area, defaultAction: .standard,
                    defaultShortcut: nil)

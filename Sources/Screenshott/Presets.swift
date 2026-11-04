@@ -75,6 +75,9 @@ final class PresetRunner {
     }
 
     func run(_ id: PresetID) {
+        // A scrolling capture owns the screen until it ends. Live Area and Repeat Last
+        // Area never pass through AppDelegate's own guards, so check here.
+        if id != .captureScrolling, app?.scrolling != nil { return }
         let preset = id.preset
         let action = settings.action(for: id)
         switch (preset.screen, preset.selection) {

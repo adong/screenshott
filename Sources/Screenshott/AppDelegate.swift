@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var areaCapturePreset = PresetID.captureArea
     /// The app that had focus before the overlay took it; it gets focus back after.
     private var previousApp: NSRunningApplication?
+    /// The running ⌥⌘⇧2 capture. Not private: ReadmeShots stages one.
+    var scrolling: ScrollingCapture?
 
     /// The app icon reduced to a menu bar glyph: viewfinder brackets around a filled
     /// card. A template image, so macOS tints it for light and dark menu bars.
@@ -116,6 +118,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if !Permissions.hasScreenCapture {
             menu.addItem(withTitle: "Grant Screen Recording…", action: #selector(grantPermission), keyEquivalent: "")
+                .target = self
+        }
+        if !Accessibility.isTrusted {
+            menu.addItem(withTitle: "Allow Auto-scroll (Accessibility)…", action: #selector(grantAccessibility), keyEquivalent: "")
                 .target = self
         }
 
@@ -221,6 +227,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         delivery.editors.resolveUnsavedChanges() ? .terminateNow : .terminateCancel
     }
 
+    @objc private func grantAccessibility() {
+        if !Accessibility.requestIfNeeded() { Accessibility.openSettings() }
+    }
+
     @objc private func openArchive() {
         try? FileManager.default.createDirectory(at: preferences.saveDirectory, withIntermediateDirectories: true)
         NSWorkspace.shared.open(preferences.saveDirectory)
@@ -246,7 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Display under the mouse → the preset's action (copy + archive + thumbnail).
     /// Bench.swift times it.
     func runFullScreenCapture(preset: PresetID = .captureFullScreen, then action: Delivery.Action = .standard) async {
-        guard !areaCaptureRunning else { return }
+        guard !areaCaptureRunning, scrolling == nil else { return }
         guard Permissions.hasScreenCapture else {
             Permissions.showMissingScreenCaptureAlert()
             return
@@ -276,7 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pressedAt pressed: ContinuousClock.Instant, preset: PresetID = .captureArea,
         enterAction: Delivery.Action = .standard
     ) async {
-        guard !areaCaptureRunning else { return }
+        guard !areaCaptureRunning, scrolling == nil else { return }
         guard Permissions.hasScreenCapture else {
             Permissions.showMissingScreenCaptureAlert()
             return
@@ -311,6 +321,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Log.write("capture failed: \(error)")
             NSSound.beep()
         }
+    }
+
+    /// ⌥⌘⇧2: pick an area on the live screen, then auto-scroll it or scroll it yourself;
+    /// the stitched image is delivered like any capture. The entry point presets use.
+    func runScrollingCapture() {
+        startScrollingCapture()
+    }
+
+    /// `stage` skips the selection — the README demo.
+    func startScrollingCapture(stage: ScrollingCapture.Stage? = nil) {
+        guard !areaCaptureRunning, scrolling == nil else { return }
+        guard Permissions.hasScreenCapture else {
+            Permissions.showMissingScreenCaptureAlert()
+            return
+        }
+        let capture = ScrollingCapture(delivery: delivery) { [weak self] in self?.scrolling = nil }
+        scrolling = capture
+        capture.begin(stage: stage)
     }
 
     private func overlayFinished(_ result: OverlayController.Result?) {
