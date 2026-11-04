@@ -65,6 +65,8 @@ final class ScrollingCapture: NSObject {
     private var lastUpdate = ContinuousClock.now
     private var steps: [ScrollStitcher.Step] = []
     private var body = 0
+    /// Height of the stitch so far, in pixels — the README demo waits on it.
+    private(set) var stitchedHeight = 0
     private var warned = false
     /// Return / keypad Enter / Esc as global hotkeys while capturing.
     private static let hotKeys: [(id: UInt32, keyCode: Int, label: String, save: Bool)] = [
@@ -260,6 +262,7 @@ final class ScrollingCapture: NSObject {
         lastUpdate = .now
         steps.append(update.step)
         body = update.body
+        stitchedHeight = update.height
         if let frames = update.preview { preview?.update(frames, height: update.height) }
         switch update.step {
         case .full:

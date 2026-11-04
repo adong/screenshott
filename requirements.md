@@ -95,6 +95,25 @@
 | 过程中 | 屏幕边上显示拼接进度的窄条预览，拼错能当场看到 |
 | 已知不保证 | 页面里有动画、视频、懒加载跳动时可能错位，v1 接受 |
 
+### 长截图实测（待 Alan 手试）
+
+| App | 模式 | 结果 | 备注 |
+|---|---|---|---|
+| Safari | 自动滚 | 待测 | |
+| Chrome | 自动滚 | 待测 | |
+| Slack | 自动滚 | 待测 | |
+| 微信 | 自动滚 | 待测 | |
+| 备忘录 | 自动滚 | 待测 | |
+| Mail | 自动滚 | 待测 | |
+| cmux | 手动滚 | 待测 | |
+| Ghostty | 手动滚 | 待测 | |
+| iTerm2 | 手动滚 | 待测 | |
+| Terminal | 手动滚 | 待测 | |
+| VS Code | 手动滚 | 待测 | |
+| Cursor | 手动滚 | 待测 | |
+| Finder 分栏 | 手动滚 | 待测 | |
+| 自绘测试页（`readme-shots.sh … scrolling`） | 自动滚 | ✅ 2026-11-04 | 504×1400 @1x，头尾各一次，到底自停，滚动条切掉 |
+
 ## v1 里程碑（草案）
 
 每个里程碑都是能跑的竖切片，做完能拿来用，不是"写完一层再写下一层"。
@@ -106,7 +125,7 @@
 | **M2 预设与热键** 🔨 2026-11-03 代码完成；`scripts/self-test.sh` 实机自动跑通延时（3.4 s 后出遮罩）和重复上次区域（同样 1024×576）。实时区域要真拖，待 Alan 手试。全屏进编辑器 / 长截图等 M3 / M5 合并。默认见"M2 预设默认"一节 | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（自写，见决策 11）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
 | **M3 编辑器** 🔨 2026-11-03 代码完成、Core 测试全过（92 个）；`--readme-shots` 在壁纸上自动标注一张假结账卡片，渲染正确；Alan 手动试用待测。交互默认见"M3 编辑器交互默认"一节 | 对象层文档模型；裁剪、缩放 / 平移；箭头、矩形、文字、马赛克（含实色遮盖）；工程文件存取 | 能标注，能重新打开再改 |
 | **M4 拼图** 🔨 2026-11-03 代码完成、Core 测试全过（104 个）；`--readme-shots` 走真的"添加截图"路径（编辑器让开 → 遮罩 → 选区落到画布）拼出两张，渲染正确；Alan 手动试用待测。交互默认见"M4 拼图交互默认"一节 | 编辑器 / 缩略图上"添加截图"；自动排列 | 多张拼一张 |
-| **M5 长截图** | 实时框选；自动滚（辅助功能权限）+ 手动滚；重叠匹配拼接；固定头尾去重；进度预览；30,000 px 上限 | 通过长截图验收清单 |
+| **M5 长截图** 🔨 2026-11-04 代码完成、合进 main（v0.1.0），M5 的 Core 测试 27 个全过；`readme-shots.sh … scrolling` 在自绘页面上实机自动跑通：自动滚 5 次后到底自停，拼出 504×1400，顶部 56 行、底部输入框 64 行各只留一次，滚动条那条被切掉，用时 3.7 s。13 个 app 的手试待 Alan，结果记在"长截图实测"一节。交互默认见"M5 长截图交互默认"一节 | 实时框选；自动滚（辅助功能权限）+ 手动滚；重叠匹配拼接；固定头尾去重；进度预览；30,000 px 上限 | 通过长截图验收清单 |
 | **M7 Workflows**（#10：只开"截完之后"）🔨 2026-11-03 代码完成、86 个测试全过；双击安装实机通过；self-test 跑通 Copy Markdown Link 和 Copy at 1x（1x 屏和模拟 2x 都对）；disclaim 实机验证通过（inherited=true / disclaimed=false） | `.screenshottworkflow` 格式、安装与确认、script / shortcut / open-url 步骤、stdout JSON 协议、脚本放弃责任进程（不继承屏幕录制 / 辅助功能授权）、3 个示例 workflow | 别人能写、能分享、能装自己的工作流 |
 | **M6 打磨** 🔨 2026-11-03 抓图这半边完成：`--bench` + `os_signpost`，内容列表缓存，`captureImage(in:)`；⌘⇧2 → 遮罩上屏 119 → 74 ms、⌘⇧1 → 复制 + 存档 133 → 110 ms（p50，见"M6 性能记录"）。Delivery 那半边（编码挪出主线程、剪贴板延迟提供）等 M2 合并后做。开机启动（设置里）、图标（`make-icon.sh`）已有 | 内置计时（`ContinuousClock` + `os_signpost`）+ `--bench` 模式连截 N 次出 p50 / p95，对标 17 ms / 165 ms，热点用 `sample` 查；开机启动；`iconutil` 做图标 | 能替代 Shottr 当主力 |
 
@@ -210,6 +229,20 @@
 - **坐标贴着光标**（Alan："show the coordination close to the cursor plus should have option to opt out without magnifier glass"）：光标旁的小标签显示像素坐标、色块和 hex；放大镜下方不再有坐标。设置 → 通用 → "Show magnifier"可关放大镜，标签保留。标签放在放大镜的另一侧（`MagnifierLayout.tagFrame`），永不重叠。
 - **取色**（Alan："also use as a color picker, Show hex value when select and press CMD + C to copy the hex value"）：hex 按 sRGB（截图是显示器色彩空间，粘到设计工具按 sRGB 理解）。**没有选区时 ⌘C = 复制 hex 并关遮罩**；有选区时 ⌘C 照旧复制图片。代价：以前"悬停窗口 + ⌘C"复制那个窗口，现在要先单击吸附窗口再 ⌘C。
 
+## M5 长截图交互默认（2026-11-04，Alan 可推翻）
+
+- **选区**：⌥⌘⇧2 出遮罩，画面不冻结。拖框；或单击，取鼠标下的滚动区域（辅助功能里的 AXScrollArea），拿不到就取整个窗口。只框会滚的那块：框里有一条不跟着滚的侧栏，行就对不上。拖、改大小、方向键微调和 ⌘⇧2 一样。
+- **开始**：Enter（或在选区里双击、或点 *Auto-scroll*）= 自动滚；M（或点 *Scroll Myself*）= 自己滚。没有辅助功能授权时，Enter 弹系统授权框，这一次改成自己滚，窄条上写明原因。菜单栏菜单里有 *Allow Auto-scroll (Accessibility)…*。
+- **截的过程中**：被截的 app 拿回焦点，看起来就是平时的样子，键盘翻页也照常。Return、小键盘 Enter、Esc 临时注册成全局热键，不会打进那个 app（不会把 Slack 消息发出去）。遮罩只框住选区，鼠标和滚轮都穿过去。
+- **停**：Enter = 停并保存。Esc = 取消，什么都不存。验收表写的是"Enter / Esc 停"，这里把 Esc 定成取消，和遮罩一致。
+- **自动滚**：往选区中心发像素滚轮事件（像触控板），鼠标会被挪到那里。第一步滚半个选区；之后按上一步内容实际移动了多少来调，目标是会动那部分高度的 60%（各 app 对同样的滚轮事件滚得不一样远）。
+- **"连续两帧相同"的做法**：每滚一次，等画面停下 150 ms（最多等 0.7 s）。一点没动算一次，连续两次没动 = 到底，停并保存。对不上（滚过头）就滚回去、步子减半；连续三次对不上，停并保存已拼好的部分。
+- **上限**：30,000 物理像素。拼上下一帧会超过时就停下保存，结果不超过 30,000，可能差不到一帧。
+- **拼接**：每帧和上一张用上的帧比，按行找重叠。顶部不动的行（sticky header）只留第一帧的，底部不动的行（输入框、footer）只留最后一帧的。闪烁的光标、小转圈不算变化。往回滚的帧不用。
+- **滚动条**：最右 16 pt 不参与比对。这一条里有东西在动（覆盖式滚动条出现、移动），就把这 16 pt 从结果里切掉；否则每个接缝处都会留一截滚动条。
+- **窄条预览**：放在屏幕上离选区远的一侧，显示模式、当前高度和按键。对不上时边框闪橙色；自己滚时还提示"往回滚一点"。
+- **系统提示**：第一次用时 macOS 会问 "Screenshott is requesting to bypass the system private window picker…"，要点 Allow。长截图用 ScreenCaptureKit 的连续流，这个授权和截单张不是一回事。
+
 ## 开发备注
 
 - **构建**：`scripts/bundle.sh [debug|release]` → `dist/Screenshott.app`。如果 app 正在运行，脚本会先退出它、编完再重开（否则 `open` 只会激活旧进程，测的还是旧代码）。
@@ -222,6 +255,9 @@
 - **Shottr 冲突**：本机装了 Shottr，默认占 ⌘⇧1 / ⌘⇧2。测 Screenshott 时先退出 Shottr，或者改掉它的热键。注册失败时菜单里会显示"⌘⇧1 is taken by another app"。
 - **自测**：`scripts/self-test.sh` 用 `--self-test` 启动 app，不用鼠标自己跑延时、重复上次区域和两个示例 workflow（含一张假装 2x 的截图），每项记 `self-test PASS/FAIL`，跑完退出再重开。前提是装了 Copy Markdown Link 和 Copy at 1x。会动剪贴板，往截图文件夹里存几张壁纸图；"上次区域"跑完会还原。
 - **README 截图别在屏保时跑**：屏保盖在所有窗口上面，包括垫底的壁纸窗口，2026-11-03 拍出来全是翻页钟。`readme-shots.sh` 现在检测到屏保就不跑。
+- **重绘噪声（M5，2026-11-04）**：app 滚动后会重画文字，抗锯齿可能差 1 级。自绘页面滚 300 px 后，180 行重叠里有 93 行像素差 1，按哈希一行都对不上。所以行比较先比哈希，不一样再比 32 段列的颜色和，容差是每个像素每个通道差 1；"没动"的判断也忽略不超过 8 级的差。
+- **长截图调试**：退出 Screenshott 后 `open dist/Screenshott.app --args --scroll-debug <目录>`，会把第一帧和前几张对不上的帧存成 PNG，日志里记它和上一张好帧差多少像素、多少行、最大差几级。那是真屏幕内容，只留本机。
+- **README 长截图**：`scripts/readme-shots.sh dist/readme-shots scrolling` 只跑长截图：自己画一个聊天式页面（标题栏 + 长内容 + 底部输入框），直接滚它的 NSScrollView（不用辅助功能），走真的 ScreenCaptureKit 流和拼接，存 `scrolling.png`（过程中，带窄条）和 `scrolling-result.png`（结果）。墙纸窗口垫在弹出菜单那一层，别的 app 的浮动面板盖不过来。
 - **日志**：`~/Library/Logs/Screenshott.log`，每次截图记录 list / grab / encode / copy+save 各段耗时，M6 对标 17 ms 用。
 - **基准（M6）**：`scripts/bench.sh [N] [--sample]` 跑 `--bench N`，结果打印出来并存到 `dist/bench/`。截图进临时文件夹和私有剪贴板，跑完删掉，不出声、不出缩略图，不碰 `~/Pictures/Screenshott` 和剪贴板。跑的时候不能用 Screenshott：打开菜单栏菜单会卡住所有 MainActor 任务（结果会标 `bench disturbed`）；`bundle.sh`、`bench.sh`、别的会话的自测都会按名字退出正在跑的 Screenshott，这个机器上几个会话一起测的时候要先说好。`--sample` 每毫秒采样一次，会拖慢 app，那次的数字不能比。各阶段也是 `os_signpost` 区间（subsystem `com.adong.Screenshott`），不落盘，实时看：`log stream --signpost --predicate 'subsystem == "com.adong.Screenshott"'`。
 - **SwiftUI 不能用 `@State`**：这个 SDK 里 `@State`（还有 `@Entry`、`@Previewable`）是宏，宏插件 `SwiftUIMacros` 只随 Xcode 发，Command Line Tools 里没有，编译直接报 "plugin for module 'SwiftUIMacros' not found"。视图自己的状态放进 `ObservableObject` + `@Published`（属性包装器，不是宏）；`@Observable` 也能用，CLT 带了 `ObservationMacros`。
