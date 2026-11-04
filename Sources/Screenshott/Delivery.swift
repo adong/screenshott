@@ -31,8 +31,9 @@ final class CaptureItem {
 }
 
 /// What happens to a finished capture: the after-capture action interface. Every
-/// built-in action runs through `run(_:on:)` — a preset's Enter, the overlay keys, the
-/// thumbnail menu — so #10 workflows can plug in as one more kind of action.
+/// built-in action runs through `run(_:on:)` — a preset's Enter, the overlay keys and
+/// action bar, the thumbnail menu, a workflow's `action` steps — and an installed
+/// workflow (#10) is one more kind of action.
 @MainActor
 final class Delivery {
     typealias Action = CaptureAction
@@ -45,6 +46,8 @@ final class Delivery {
     let thumbnails = Thumbnails()
     /// The editor (M3). AppDelegate points it at `openInEditor`.
     var openEditor: ((CGImage, CGFloat) -> Void)?
+    /// Installed workflows: (id, capture, log). AppDelegate points it at the WorkflowRunner.
+    var runWorkflow: ((String, CaptureItem, String) -> Void)?
     /// The most recent capture.
     private(set) var last: CaptureItem?
     private let preferences: Preferences
@@ -72,10 +75,16 @@ final class Delivery {
     /// Runs one action on a capture; this adds the encode and delivery timings and the
     /// file name to `log`.
     func run(_ action: Action, on item: CaptureItem, log: String) {
-        if action == .openEditor {
+        switch action {
+        case .openEditor:
             Log.write("\(log) → editor")
             openEditor?(item.image, item.scale)
             return
+        case .workflow(let id):
+            runWorkflow?(id, item, log)
+            return
+        default:
+            break
         }
         let clock = ContinuousClock()
         let start = clock.now
@@ -115,7 +124,7 @@ final class Delivery {
             }
         case .saveAs:
             saveAs(item, png, log: "\(log) \(timings)")
-        case .openEditor:
+        case .openEditor, .workflow:
             break
         }
     }

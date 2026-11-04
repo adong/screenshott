@@ -49,7 +49,8 @@
 - **数据约定**：图片路径和元数据 JSON 走 stdin 和环境变量（`SCREENSHOTT_IMAGE` 等）；脚本往 stdout 打 JSON 告诉 app 下一步：`clipboard` / `notify` / `open` / `image`（换一张图交给下一步）。
 - **进程外运行**：第三方代码不进 app 进程，崩了不拖垮截图；安装时列出要跑的脚本让用户确认。
 - **内置动作走同一个接口**（M2 起），外部 workflow 只是又一种动作来源。
-- **默认：脚本不继承 Screenshott 的权限**。macOS 把子进程的权限算在父 app 头上：不处理的话，workflow 脚本能用 Screenshott 的屏幕录制授权随时偷截屏，M5 之后还能用它的辅助功能授权操作键盘鼠标。脚本已经拿到了那张图，用不着这些权限。做法：启动脚本时放弃"责任进程"（`posix_spawn` + `responsibility_spawnattrs_setdisclaim`，iTerm2 / LLDB 用的私有接口；DMG 分发可以用私有 API），脚本要截屏得自己去要授权。[M7 开工时验证：disclaim 后的子进程调 `CGPreflightScreenCaptureAccess` 应返回 false] Alan 可推翻。
+- **默认：脚本不继承 Screenshott 的权限**。macOS 把子进程的权限算在父 app 头上：不处理的话，workflow 脚本能用 Screenshott 的屏幕录制授权随时偷截屏，M5 之后还能用它的辅助功能授权操作键盘鼠标。脚本已经拿到了那张图，用不着这些权限。做法：启动脚本时放弃"责任进程"（`posix_spawn` + `responsibility_spawnattrs_setdisclaim`，iTerm2 / LLDB 用的私有接口；DMG 分发可以用私有 API），脚本要截屏得自己去要授权。验证办法：`scripts/verify-disclaim.sh` 让 app 把探针 `Tools/TCCProbe` 各起一次（不放弃 / 放弃），记下子进程里 `CGPreflightScreenCaptureAccess()` 的结果。2026-11-03 实机：inherited=true、disclaimed=false，即不处理的话脚本真能借到屏幕录制授权，放弃之后借不到。Alan 可推翻。
+- **实现细节和默认**见"M7 Workflows 默认"一节；给作者看的格式说明在 `docs/workflows.md`。
 
 ## Open branches
 
@@ -102,11 +103,11 @@
 |---|---|---|
 | **M0 骨架** ✅ 2026-11-02 验收通过（真改代码的重编 cdhash=f19deb15 启动即 screenCapture=true，授权跨重编保留） | `Package.swift` + `bundle.sh` + 自签名签名；菜单栏 app；屏幕录制授权引导；⌘⇧1 全屏 → 复制 + 存档 | 验证整条管线：编译 → 打包 → 签名 → 授权 → 截图 → 剪贴板，且重新编译后授权不丢 |
 | **M1 冻结遮罩** 🔨 2026-11-02 代码完成、40 个测试全过；外接屏（2560×1440 @1x）实机截图通过，遮罩 138–160 ms 弹出，裁剪对；Retina 屏待测 | 每屏一个遮罩窗口；框选、单击吸附窗口；放大镜、方向键微调；多显示器 + Retina；浮动缩略图。交互默认见"M1 交互默认"一节 | ⌘⇧2 日常区域截图可用 |
-| **M2 预设与热键** 🔨 2026-11-03 代码完成、66 个测试全过，待实机试（延时、重复上次区域）。全屏进编辑器 / 长截图等 M3 / M5 合并。默认见"M2 预设默认"一节 | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（自写，见决策 11）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
+| **M2 预设与热键** 🔨 2026-11-03 代码完成；`scripts/self-test.sh` 实机自动跑通延时（3.4 s 后出遮罩）和重复上次区域（同样 1024×576）。实时区域要真拖，待 Alan 手试。全屏进编辑器 / 长截图等 M3 / M5 合并。默认见"M2 预设默认"一节 | 预设模型（冻结 / 实时 × 选择 × 动作）；7 个预设；热键录制（自写，见决策 11）；设置页；遮罩通用键；**动作接口**（复制、存档、编辑器等内置动作都走它，给 #10 workflow 铺路） | 热键可改，Shottr 流、延时、重复区域可用 |
 | **M3 编辑器** | 对象层文档模型；裁剪、缩放 / 平移；箭头、矩形、文字、马赛克（含实色遮盖）；工程文件存取 | 能标注，能重新打开再改 |
 | **M4 拼图** | 编辑器 / 缩略图上"添加截图"；自动排列 | 多张拼一张 |
 | **M5 长截图** | 实时框选；自动滚（辅助功能权限）+ 手动滚；重叠匹配拼接；固定头尾去重；进度预览；30,000 px 上限 | 通过长截图验收清单 |
-| **M7 Workflows**（#10：只开"截完之后"） | `.screenshottworkflow` 格式、安装与确认、script / shortcut / open-url 步骤、stdout JSON 协议、脚本放弃责任进程（不继承屏幕录制 / 辅助功能授权）、3 个示例 workflow | 别人能写、能分享、能装自己的工作流 |
+| **M7 Workflows**（#10：只开"截完之后"）🔨 2026-11-03 代码完成、86 个测试全过；双击安装实机通过；self-test 跑通 Copy Markdown Link 和 Copy at 1x（1x 屏和模拟 2x 都对）；disclaim 实机验证通过（inherited=true / disclaimed=false） | `.screenshottworkflow` 格式、安装与确认、script / shortcut / open-url 步骤、stdout JSON 协议、脚本放弃责任进程（不继承屏幕录制 / 辅助功能授权）、3 个示例 workflow | 别人能写、能分享、能装自己的工作流 |
 | **M6 打磨** | 内置计时（`ContinuousClock` + `os_signpost`）+ `--bench` 模式连截 N 次出 p50 / p95，对标 17 ms / 165 ms，热点用 `sample` 查；开机启动；`iconutil` 做图标 | 能替代 Shottr 当主力 |
 
 ## M1 交互默认（2026-11-02，Alan 可推翻）
@@ -131,16 +132,33 @@
 - **设置窗口分页**：预设 / 通用（7 个预设加其他选项一页放不下笔记本屏幕）。
 - **存储**：快捷键仍是 `shortcut.<预设名>`（`captureArea`、`captureFullScreen` 沿用，旧设置不丢）；动作和倒计时是 `preset.<预设名>.action` / `.delay`；上次区域是 `lastArea`。
 
+## M7 Workflows 默认（2026-11-03，Alan 可推翻）
+
+- **先存档再跑**：workflow 开跑前截图先进存档文件夹（决策 11 的自动存档），所以脚本总能拿到一个真文件路径。
+- **步骤**：`script`（包里的可执行文件，带 `#!`）、`shortcut`（`shortcuts run 名字 --input-path 图`）、`open-url`（模板 URL）、`action`（`copy` / `save` / `save-as` / `thumbnail` / `editor`）。贴图、OCR 是 P1，到时再加成内置动作。
+- **stdout 协议**：空，或一个 JSON 对象（`clipboard` / `notify` / `open` / `image`），日志一律走 stderr。不认识的键忽略并记日志（拼错能在日志里看到）。不是 JSON 对象、退出码非 0、超时 = 整条链停下，浮层提示"第几步、为什么"（带 stderr 最后一行）。
+- **超时**：脚本默认 30 s，可配 1–300 s；到点给整个进程组 SIGTERM，2 s 后 SIGKILL。Shortcut 120 s。
+- **环境**：最小环境，不继承启动 Screenshott 的环境；`PATH` 带 `/opt/homebrew/bin`、`/usr/local/bin`；工作目录 = workflow 文件夹；每步有一个空的输出文件夹（`SCREENSHOTT_OUTPUT_DIR`），在系统临时目录下，下次启动清掉。
+- **`image`**：绝对路径，或相对输出文件夹的路径；倍数按图片 DPI 算（144 = 2x），后面的步骤拿到新图。
+- **`notify`**：用 app 自己的浮层（屏幕下方，几秒后消失），不走系统通知，免得多一个授权弹窗。
+- **Shortcut 的输出**：图片 → 换图；JSON 对象 → 和脚本 stdout 一样；其他忽略。
+- **安装**：`ditto` 解压；`workflow.json` 可在 zip 根目录或唯一的顶层文件夹里（Finder"压缩"出来的就是这样）。路径必须在包内（不许 `/`、`~`、`..`，符号链接也不许指出去）。确认框列出作者、版本和每一步要做的事。同 id 再装 = 替换，旧的进废纸篓。装好后脚本 `chmod +x`，去掉下载隔离属性（用户刚确认过这些脚本）。删除 = 移到废纸篓。
+- **入口**：遮罩选区下方的动作栏（复制 / 另存为 / 编辑器 + 最多 9 个 workflow，数字键 1–9 对应）；缩略图悬停出现闪电按钮，右键菜单里也有；菜单栏 Workflows ▸ 对最近一张截图运行 / 安装 / 打开文件夹；设置里每个预设的"Then"可以选 workflow（workflow 被删后自动退回默认动作）。设置加第三个标签 Workflows：列表、显示位置、移到废纸篓、安装。
+- **文档类型**：`Info.plist` 声明 `com.adong.screenshott.workflow`（扩展名 `.screenshottworkflow`，符合 `public.zip-archive`），Screenshott 是 Owner，双击即装。
+- **3 个示例**（`Examples/Workflows`，`scripts/pack-workflows.sh` 打包）：Copy Markdown Link（JXA 脚本 → clipboard + notify）、Copy at 1x（`sips` 缩一半 → image，再内置 copy）、Email It（内置 copy + `mailto:` 模板 URL，粘贴即可）。`shortcut` 步骤需要用户自己的快捷指令，没有做成示例，写在 `docs/workflows.md`。
+
 ## 开发备注
 
 - **构建**：`scripts/bundle.sh [debug|release]` → `dist/Screenshott.app`。如果 app 正在运行，脚本会先退出它、编完再重开（否则 `open` 只会激活旧进程，测的还是旧代码）。
-- **测试**：`scripts/test.sh`（Swift Testing，M2 后 66 个，2026-11-03 全过）。只装 Command Line Tools 时，swift-build 有时不加载 `host/plugins/testing/` 下的宏插件，所有 `@Test` 都会报 "plugin for module 'TestingMacros' not found"，脚本会显式传 `-plugin-path`。
+- **测试**：`scripts/test.sh`（Swift Testing，M7 后 86 个，2026-11-03 全过）。只装 Command Line Tools 时，swift-build 有时不加载 `host/plugins/testing/` 下的宏插件，所有 `@Test` 都会报 "plugin for module 'TestingMacros' not found"，脚本会显式传 `-plugin-path`。
 - **图标**：`scripts/make-icon.sh` 用 `Tools/MakeIcon` 里的 CoreGraphics 矢量代码按每个尺寸单独绘制，再用 `iconutil` 打包成 `Support/AppIcon.icns`（.icns 提交进 git，中间 PNG 不提交）。菜单栏图形在 `AppDelegate.menuBarGlyph` 里用代码画，是 template 图，系统按深浅色菜单栏自动着色。
 - **启动日志带 CDHash**：`launch 0.1.0 (1) cdhash=xxxxxxxx …`。缓存命中的构建会重新签同样的字节，CDHash 不变；只有 CDHash 变了还不用重新授权，才能证明授权真的跨重编保留。
 - **Claude 会话的沙盒里编不了**：SwiftPM 往 `/var/folders/hs/…/T`（临时文件、原子写）和 `/var/folders/hs/…/C`（clang 模块缓存）写东西，沙盒拒绝；另外 SwiftPM 自己的 `sandbox-exec` 不能嵌套，需要加 `--disable-sandbox`。home-guard 又禁止在沙盒外跑仓库脚本。所以目前 `bundle.sh` 由 Alan 在自己的终端跑。想让 Claude 自己编：在 `sandbox.filesystem.allowWrite` 里加 `/private/var/folders/hs/967572j15p385840s129d2r40000gn`，然后用 `swift build --disable-sandbox`。
 - **沙盒里的替代办法（2026-11-02 起，home-guard 连沙盒外的 `swift build` / `swift test` 也拒了）**：不走 SwiftPM，直接用 `swiftc` 编：先把 `Sources/ScreenshottCore` 编成静态库加模块（`-emit-library -static -emit-module`，`-module-cache-path` 指到 `$TMPDIR`），再编 app 或测试去链它；测试多带 `-enable-testing`、`-F …/CommandLineTools/Library/Developer/Frameworks -framework Testing`、宏插件的 `-plugin-path`，再加一个调用 `Testing.__swiftPMEntryPoint()` 的 `@main` 文件；运行时 Testing.framework 还要 `lib_TestingInterop.dylib`，在 `…/CommandLineTools/Library/Developer/usr/lib`，链接时加这个 rpath。这样能编译、能跑测试，但出不了签好名的 .app，打包仍然是 Alan 跑 `bundle.sh`。
 - **签名证书**：钥匙串里已有自签名证书 "NoteTaker Local Dev"（另一个项目建的）。`bundle.sh` 找不到 "Screenshott Dev" 时会自动用它，TCC 授权照样能跨重编保留。想分开就建一个 "Screenshott Dev"，脚本会优先用。
 - **Shottr 冲突**：本机装了 Shottr，默认占 ⌘⇧1 / ⌘⇧2。测 Screenshott 时先退出 Shottr，或者改掉它的热键。注册失败时菜单里会显示"⌘⇧1 is taken by another app"。
+- **自测**：`scripts/self-test.sh` 用 `--self-test` 启动 app，不用鼠标自己跑延时、重复上次区域和两个示例 workflow（含一张假装 2x 的截图），每项记 `self-test PASS/FAIL`，跑完退出再重开。前提是装了 Copy Markdown Link 和 Copy at 1x。会动剪贴板，往截图文件夹里存几张壁纸图；"上次区域"跑完会还原。
+- **README 截图别在屏保时跑**：屏保盖在所有窗口上面，包括垫底的壁纸窗口，2026-11-03 拍出来全是翻页钟。`readme-shots.sh` 现在检测到屏保就不跑。
 - **日志**：`~/Library/Logs/Screenshott.log`，每次截图记录 list / grab / encode / copy+save 各段耗时，M6 对标 17 ms 用。
 - **SwiftUI 不能用 `@State`**：这个 SDK 里 `@State`（还有 `@Entry`、`@Previewable`）是宏，宏插件 `SwiftUIMacros` 只随 Xcode 发，Command Line Tools 里没有，编译直接报 "plugin for module 'SwiftUIMacros' not found"。视图自己的状态放进 `ObservableObject` + `@Published`（属性包装器，不是宏）；`@Observable` 也能用，CLT 带了 `ObservationMacros`。
 - **UI 文案**：先用英文（以后做产品要本地化，英文当基准语言）。Alan 可推翻。

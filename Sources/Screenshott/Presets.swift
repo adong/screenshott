@@ -8,6 +8,8 @@ import ScreenshottCore
 final class PresetSettings: ObservableObject {
     @Published private var storedActions: [PresetID: String] = [:]
     @Published private var storedDelays: [PresetID: Int] = [:]
+    /// The ids a stored workflow choice is checked against; AppDelegate sets it.
+    var installedWorkflows: () -> Set<String> = { [] }
     private let defaults: UserDefaults
 
     private static let lastAreaKey = "lastArea"
@@ -21,7 +23,7 @@ final class PresetSettings: ObservableObject {
     }
 
     func action(for id: PresetID) -> CaptureAction {
-        id.preset.action(stored: storedActions[id])
+        id.preset.action(stored: storedActions[id], installedWorkflows: installedWorkflows())
     }
 
     func setAction(_ action: CaptureAction, for id: PresetID) {

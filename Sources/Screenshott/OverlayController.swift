@@ -17,6 +17,8 @@ final class OverlayController {
 
     /// What Enter and a double-click run: the preset's action.
     let enterAction: Delivery.Action
+    /// The action bar under the selection; its workflows also answer to 1–9.
+    let barItems: [OverlayActionBar.Item]
 
     private var panels: [OverlayPanel] = []
     private var views: [OverlayView] = []
@@ -28,9 +30,10 @@ final class OverlayController {
 
     init(
         capture: FrozenCapture, windows: [CGRect], enterAction: Delivery.Action = .standard,
-        onFinish: @escaping (Result?) -> Void
+        barItems: [OverlayActionBar.Item] = [], onFinish: @escaping (Result?) -> Void
     ) {
         self.enterAction = enterAction
+        self.barItems = barItems
         self.onFinish = onFinish
         for display in capture.displays {
             let panel = OverlayPanel(
@@ -115,6 +118,9 @@ final class OverlayController {
             confirm(.saveAs)
         } else if flags.isEmpty, key == "e" {
             confirm(.openEditor)
+        } else if flags.isEmpty, let key, let n = Int(key), (1...9).contains(n) {
+            let workflows = barItems.filter { $0.action.workflowID != nil }
+            if workflows.indices.contains(n - 1) { confirm(workflows[n - 1].action) } else { NSSound.beep() }
         } else if flags.isEmpty, key == "p" {
             Log.write("overlay: P (pin) arrives in P1")
             NSSound.beep()

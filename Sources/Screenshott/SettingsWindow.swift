@@ -3,14 +3,18 @@ import ScreenshottCore
 import ServiceManagement
 import SwiftUI
 
-/// Settings: presets and their shortcuts, where captures go, what happens after a capture. SwiftUI for
+/// Settings: presets and their shortcuts, where captures go, what happens after a
+/// capture, installed workflows. SwiftUI for
 /// this cold UI (decision 8), hosted in a plain window because the app runs on the
 /// AppKit lifecycle.
 @MainActor
 final class SettingsWindowController: NSWindowController {
-    convenience init(preferences: Preferences, shortcuts: ShortcutCenter, presets: PresetSettings) {
+    private(set) var model: SettingsModel!
+
+    convenience init(preferences: Preferences, shortcuts: ShortcutCenter, presets: PresetSettings, workflows: WorkflowStore) {
+        let model = SettingsModel(shortcuts: shortcuts)
         let hosting = NSHostingController(rootView: SettingsView(
-            preferences: preferences, shortcuts: shortcuts, presets: presets, model: SettingsModel(shortcuts: shortcuts)
+            preferences: preferences, shortcuts: shortcuts, presets: presets, workflows: workflows, model: model
         ))
         hosting.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: hosting)
@@ -19,6 +23,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
+        self.model = model
     }
 
     func show() {
@@ -32,7 +37,7 @@ final class SettingsWindowController: NSWindowController {
 /// a macro whose plugin ships only with Xcode, and we build with the Command Line Tools.
 @MainActor
 final class SettingsModel: ObservableObject {
-    enum Tab: Hashable { case presets, general }
+    enum Tab: Hashable { case presets, general, workflows }
 
     @Published var tab = Tab.presets
     @Published var problems: [ShortcutCenter.Action: String] = [:]
@@ -65,6 +70,7 @@ struct SettingsView: View {
     @ObservedObject var preferences: Preferences
     @ObservedObject var shortcuts: ShortcutCenter
     @ObservedObject var presets: PresetSettings
+    @ObservedObject var workflows: WorkflowStore
     @ObservedObject var model: SettingsModel
 
     var body: some View {
@@ -72,6 +78,7 @@ struct SettingsView: View {
         TabView(selection: $model.tab) {
             presetsTab.tabItem { Text("Presets") }.tag(SettingsModel.Tab.presets)
             generalTab.tabItem { Text("General") }.tag(SettingsModel.Tab.general)
+            workflowsTab.tabItem { Text("Workflows") }.tag(SettingsModel.Tab.workflows)
         }
         .padding(.top, 6)
         .frame(width: 560)
@@ -94,6 +101,72 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var workflowsTab: some View {
+        Form {
+            Section {
+                if workflows.installed.isEmpty {
+                    Text("No workflows yet.").foregroundStyle(.secondary)
+                }
+                ForEach(workflows.installed) { workflow in
+                    workflowRow(workflow)
+                }
+            } footer: {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Button("Install…") { workflows.chooseAndInstall() }
+                        Button("Open Folder") { workflows.openFolder() }
+                    }
+                    Text("""
+                        A workflow runs after a capture: scripts, Apple Shortcuts, URLs and built-in actions. \
+                        Double-click a .screenshottworkflow file to install one. Run it from the overlay’s action \
+                        bar (1–9), a thumbnail’s menu or the menu bar, or make it a preset’s Then.
+                        """)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func workflowRow(_ workflow: InstalledWorkflow) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Group {
+                if let icon = workflow.icon {
+                    Image(nsImage: icon).resizable()
+                } else {
+                    Image(systemName: "bolt.fill").foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(workflow.name)
+                    Text(workflow.manifest.version).font(.caption).foregroundStyle(.secondary)
+                }
+                if let summary = workflow.manifest.summary {
+                    Text(summary).font(.caption).foregroundStyle(.secondary)
+                }
+                Text(workflow.manifest.steps.map(\.description).joined(separator: " → "))
+                    .font(.caption).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([workflow.folder])
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.borderless)
+            .help("Show in Finder")
+            Button {
+                workflows.remove(workflow)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("Move to Trash")
+        }
     }
 
     private var generalTab: some View {
@@ -152,6 +225,12 @@ struct SettingsView: View {
                     )) {
                         ForEach(CaptureAction.presetChoices, id: \.self) { choice in
                             Text(choice.title).tag(choice)
+                        }
+                        if !workflows.installed.isEmpty {
+                            Divider()
+                            ForEach(workflows.installed) { workflow in
+                                Text(workflow.name).tag(CaptureAction.workflow(workflow.id))
+                            }
                         }
                     }
                     .labelsHidden()

@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "id": "com.screenshott.example.email-it",
+  "name": "Email It",
+  "version": "1.0",
+  "author": "Screenshott examples",
+  "description": "Copies the capture and starts a new email named after it. Paste with ⌘V.",
+  "icon": "icon.png",
+  "steps": [
+    { "type": "action", "action": "copy" },
+    { "type": "open-url", "url": "mailto:?subject=Screenshot%20{filename}" }
+  ]
+}

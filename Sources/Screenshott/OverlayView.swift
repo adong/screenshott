@@ -17,6 +17,8 @@ final class OverlayView: NSView {
     /// The pointer in view points; nil while it is on another display.
     private var pointer: CGPoint?
     private var pressHit: SelectionModel.Hit = .outside
+    /// The mouse is down on the overlay (not on the bar); the bar hides until it's up.
+    private var pressing = false
 
     private let imageLayer = CALayer()
     private let dimLayer = CAShapeLayer()
@@ -24,6 +26,7 @@ final class OverlayView: NSView {
     private let handlesLayer = CAShapeLayer()
     private let sizeLabel: Label
     private let loupe: Loupe
+    private let actionBar: OverlayActionBar
 
     var hasSelection: Bool { model.selection != nil }
     /// What Enter captures: the selection, else the window under the pointer.
@@ -40,6 +43,7 @@ final class OverlayView: NSView {
         model = SelectionModel(bounds: geometry.pixelSize, clickSlop: Int((3 * geometry.scale).rounded()))
         sizeLabel = Label(scale: geometry.scale)
         loupe = Loupe(scale: geometry.scale)
+        actionBar = OverlayActionBar(items: controller.barItems, scale: geometry.scale)
         super.init(frame: CGRect(origin: .zero, size: geometry.pointSize))
 
         layer = CALayer()
@@ -58,7 +62,7 @@ final class OverlayView: NSView {
         handlesLayer.fillColor = NSColor.white.cgColor
         handlesLayer.strokeColor = NSColor.black.withAlphaComponent(0.4).cgColor
         handlesLayer.lineWidth = 0.5
-        for sublayer in [imageLayer, dimLayer, borderLayer, handlesLayer, sizeLabel.layer, loupe.layer] {
+        for sublayer in [imageLayer, dimLayer, borderLayer, handlesLayer, sizeLabel.layer, actionBar.layer, loupe.layer] {
             layer?.addSublayer(sublayer)
         }
         refresh()
@@ -117,6 +121,11 @@ final class OverlayView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if let action = actionBar.action(at: localPoint(event)) {
+            controller?.confirm(action)
+            return
+        }
+        pressing = true
         controller?.pressBegan(in: self)
         let edge = geometry.edge(at: localPoint(event))
         if event.clickCount == 2, model.hit(edge, tolerance: tolerance) == .inside, let controller {
@@ -133,6 +142,8 @@ final class OverlayView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard pressing else { return }
+        pressing = false
         if model.end(), pressHit == .outside {
             // A click takes the window under the pointer; on the desktop it clears.
             let pixel = geometry.pixel(at: localPoint(event))
@@ -165,7 +176,9 @@ final class OverlayView: NSView {
     private func updateCursor() {
         guard let pointer else { return }
         let cursor: NSCursor
-        if model.isMoving {
+        if actionBar.contains(pointer) {
+            cursor = .arrow
+        } else if model.isMoving {
             cursor = .closedHand
         } else {
             switch model.hit(geometry.edge(at: pointer), tolerance: tolerance) {
@@ -208,6 +221,14 @@ final class OverlayView: NSView {
         }
 
         handlesLayer.path = selected ? hole.flatMap { handlesPath(for: $0) } : nil
+
+        if selected, !pressing, let hole, !actionBar.size.equalTo(.zero) {
+            actionBar.place(below: hole, in: bounds.size)
+            actionBar.layer.isHidden = false
+        } else {
+            actionBar.layer.isHidden = true
+        }
+        actionBar.hover(at: pointer)
 
         if let pointer, !model.isMoving {
             loupe.update(image: display.image, center: geometry.pixel(at: pointer), bounds: geometry.pixelSize)

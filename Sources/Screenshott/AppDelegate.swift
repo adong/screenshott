@@ -7,8 +7,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let preferences = Preferences()
     private lazy var shortcuts = ShortcutCenter(preferences: preferences)
-    private lazy var delivery = Delivery(preferences: preferences)
-    private lazy var presets = PresetRunner(app: self, delivery: delivery)
+    // Not private, like `overlay` below: SelfTest.swift drives them.
+    lazy var delivery = Delivery(preferences: preferences)
+    lazy var presets = PresetRunner(app: self, delivery: delivery)
+    lazy var workflows = WorkflowStore()
+    lazy var workflowRunner = WorkflowRunner(store: workflows, delivery: delivery)
     private var settings: SettingsWindowController?
 
     /// Not private, like `runAreaCapture`: ReadmeShots.swift drives them.
@@ -56,6 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             (id, { [weak self] in self?.presets.run(id) })
         }))
         delivery.openEditor = { [weak self] image, scale in self?.openInEditor(image, scale: scale) }
+        delivery.runWorkflow = { [weak self] id, item, log in _ = self?.workflowRunner.run(id, on: item, log: log) }
+        delivery.thumbnails.workflows = { [weak self] in
+            self?.workflows.installed.map { ($0.name, .workflow($0.id)) } ?? []
+        }
+        presets.settings.installedWorkflows = { [weak self] in self?.workflows.ids ?? [] }
+        if ReadmeShots.directory != nil { workflows.examplesOnly = true }
         Permissions.requestScreenCaptureIfNeeded()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = Self.menuBarGlyph
@@ -67,6 +76,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             """)
         if let directory = ReadmeShots.directory {
             Task { await runReadmeShots(into: directory) }
+        }
+        if let probe = DisclaimCheck.probe {
+            Task { await DisclaimCheck.run(probe: probe) }
+        }
+        if SelfTest.requested {
+            Task { await runSelfTest() }
         }
     }
 
@@ -95,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        menu.setSubmenu(workflowsMenu(), for: menu.addItem(withTitle: "Workflows", action: nil, keyEquivalent: ""))
         menu.addItem(withTitle: "Open Screenshots Folder", action: #selector(openArchive), keyEquivalent: "")
             .target = self
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -134,6 +150,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Each workflow runs on the last capture; then install and the folder.
+    private func workflowsMenu() -> NSMenu {
+        let menu = NSMenu()
+        let hasCapture = delivery.last != nil
+        if workflows.installed.isEmpty {
+            menu.addItem(withTitle: "No Workflows Installed", action: nil, keyEquivalent: "").isEnabled = false
+        } else {
+            menu.addItem(withTitle: hasCapture ? "Run on Last Capture" : "Run on Last Capture (none yet)",
+                         action: nil, keyEquivalent: "").isEnabled = false
+            for workflow in workflows.installed {
+                let item = menu.addItem(withTitle: workflow.name, action: #selector(runWorkflowFromMenu(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = workflow.id
+                item.isEnabled = hasCapture
+                item.indentationLevel = 1
+                if let icon = workflow.icon {
+                    icon.size = NSSize(width: 16, height: 16)
+                    item.image = icon
+                }
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Install Workflow…", action: #selector(installWorkflow), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Open Workflows Folder", action: #selector(openWorkflowsFolder), keyEquivalent: "")
+            .target = self
+        // Items with no action are enabled by hand above; keep AppKit from overriding that.
+        menu.autoenablesItems = false
+        return menu
+    }
+
+    @objc private func runWorkflowFromMenu(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? String, let last = delivery.last else { return }
+        delivery.run(.workflow(id), on: last, log: "menu")
+    }
+
+    @objc private func installWorkflow() { workflows.chooseAndInstall() }
+
+    @objc private func openWorkflowsFolder() { workflows.openFolder() }
+
+    /// Double-clicking a `.screenshottworkflow` lands here (Info.plist declares the type).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.pathExtension == WorkflowManifest.fileExtension {
+            workflows.install(from: url)
+        }
+    }
+
     @objc private func grantPermission() { Permissions.showMissingScreenCaptureAlert() }
 
     @objc private func openArchive() {
@@ -144,12 +206,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Not private: ReadmeShots.swift photographs it.
     @objc func openSettings() {
         if settings == nil {
-            settings = SettingsWindowController(preferences: preferences, shortcuts: shortcuts, presets: presets.settings)
+            settings = SettingsWindowController(
+                preferences: preferences, shortcuts: shortcuts, presets: presets.settings, workflows: workflows
+            )
         }
         settings?.show()
     }
 
     var settingsWindow: NSWindow? { settings?.window }
+    var settingsModel: SettingsModel? { settings?.model }
 
     @objc private func openLog() { NSWorkspace.shared.open(Log.url) }
 
@@ -203,7 +268,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             previousApp = frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : frontmost
 
             let controller = OverlayController(
-                capture: capture, windows: windows, enterAction: enterAction
+                capture: capture, windows: windows, enterAction: enterAction,
+                barItems: OverlayActionBar.items(workflows: workflows.installed)
             ) { [weak self] result in
                 self?.overlayFinished(result)
             }

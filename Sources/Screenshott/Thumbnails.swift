@@ -10,6 +10,8 @@ final class Thumbnails {
     private static let perScreenLimit = 5
     /// Runs an after-capture action on a thumbnail's capture; Delivery sets it.
     var onAction: ((CaptureAction, CaptureItem) -> Void)?
+    /// The installed workflows, offered in each thumbnail's menu.
+    var workflows: () -> [(name: String, action: CaptureAction)] = { [] }
 
     /// Window numbers to leave out of the next capture.
     var windowNumbers: Set<Int> { Set(items.map(\.panel.windowNumber)) }
@@ -17,7 +19,9 @@ final class Thumbnails {
     func show(_ image: CGImage, scale: CGFloat, file: URL, on screen: NSScreen?) {
         guard let screen = screen ?? NSScreen.main else { return }
         let size = ThumbnailLayout.size(for: PixelSize(width: image.width, height: image.height), scale: scale)
-        let item = ThumbnailItem(image: image, scale: scale, file: file, size: size, visibleFrame: screen.visibleFrame)
+        let item = ThumbnailItem(
+            image: image, scale: scale, file: file, size: size, visibleFrame: screen.visibleFrame, workflows: workflows()
+        )
         item.onAction = { [weak self] action, capture in self?.onAction?(action, capture) }
         item.onDismiss = { [weak self, weak item] in
             guard let self, let item else { return }
@@ -53,14 +57,19 @@ final class ThumbnailItem {
 
     private let image: CGImage
     private let scale: CGFloat
+    private let workflows: [(name: String, action: CaptureAction)]
     private var timer: Timer?
     private var placed = false
     private var dismissed = false
     private static let lifetime: TimeInterval = 6
 
-    init(image: CGImage, scale: CGFloat, file: URL, size: CGSize, visibleFrame: CGRect) {
+    init(
+        image: CGImage, scale: CGFloat, file: URL, size: CGSize, visibleFrame: CGRect,
+        workflows: [(name: String, action: CaptureAction)]
+    ) {
         self.image = image
         self.scale = scale
+        self.workflows = workflows
         self.file = file
         self.size = size
         self.visibleFrame = visibleFrame
@@ -82,6 +91,7 @@ final class ThumbnailItem {
         view.onClick = { [weak self] in self?.open() }
         view.onDragEnded = { [weak self] delivered in if delivered { self?.dismiss() } }
         view.onClose = { [weak self] in self?.dismiss() }
+        view.hasWorkflows = !workflows.isEmpty
         view.menu = menu()
         view.file = file
         panel.contentView = view
@@ -149,6 +159,18 @@ final class ThumbnailItem {
         ] {
             menu.addItem(withTitle: title, action: action, keyEquivalent: "").target = menuTarget
         }
+        if !workflows.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Workflows", action: nil, keyEquivalent: "").isEnabled = false
+            for (index, workflow) in workflows.enumerated() {
+                let item = menu.addItem(
+                    withTitle: workflow.name, action: #selector(ThumbnailMenuTarget.runWorkflow(_:)), keyEquivalent: ""
+                )
+                item.target = menuTarget
+                item.tag = index
+                item.indentationLevel = 1
+            }
+        }
         return menu
     }
 
@@ -167,6 +189,11 @@ final class ThumbnailItem {
     }
 
     fileprivate func openFile() { open() }
+
+    fileprivate func runWorkflow(at index: Int) {
+        guard workflows.indices.contains(index) else { return }
+        run(workflows[index].action)
+    }
 
     /// Hands the capture to an after-capture action, then gets out of the way.
     fileprivate func run(_ action: CaptureAction) {
@@ -195,6 +222,7 @@ private final class ThumbnailMenuTarget: NSObject {
     @objc func reveal() { item?.revealFile() }
     @objc func open() { item?.openFile() }
     @objc func openInEditor() { item?.run(.openEditor) }
+    @objc func runWorkflow(_ sender: NSMenuItem) { item?.runWorkflow(at: sender.tag) }
     @objc func trash() { item?.trashFile() }
 }
 
@@ -205,9 +233,12 @@ final class ThumbnailView: NSView, NSDraggingSource {
     var onDragEnded: ((Bool) -> Void)?
     var onClose: (() -> Void)?
     var file: URL?
+    /// Shows a bolt on hover that opens the menu, where the workflows are.
+    var hasWorkflows = false
 
     private let image: CGImage
     private let closeButton = NSButton()
+    private let workflowsButton = NSButton()
     private var pressPoint: CGPoint?
     private var dragging = false
 
@@ -237,6 +268,15 @@ final class ThumbnailView: NSView, NSDraggingSource {
         closeButton.isHidden = true
         addSubview(closeButton)
 
+        workflowsButton.image = NSImage(systemSymbolName: "bolt.circle.fill", accessibilityDescription: "Workflows")
+        workflowsButton.isBordered = false
+        workflowsButton.contentTintColor = .white
+        workflowsButton.target = self
+        workflowsButton.action = #selector(showWorkflows)
+        workflowsButton.frame = CGRect(x: bounds.width - 24, y: bounds.height - 24, width: 20, height: 20)
+        workflowsButton.isHidden = true
+        addSubview(workflowsButton)
+
         addTrackingArea(NSTrackingArea(
             rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self
         ))
@@ -248,11 +288,13 @@ final class ThumbnailView: NSView, NSDraggingSource {
 
     override func mouseEntered(with event: NSEvent) {
         closeButton.isHidden = false
+        workflowsButton.isHidden = !hasWorkflows
         onHover?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
         closeButton.isHidden = true
+        workflowsButton.isHidden = true
         onHover?(false)
     }
 
@@ -278,6 +320,10 @@ final class ThumbnailView: NSView, NSDraggingSource {
     }
 
     @objc private func close() { onClose?() }
+
+    @objc private func showWorkflows() {
+        menu?.popUp(positioning: nil, at: CGPoint(x: workflowsButton.frame.minX, y: workflowsButton.frame.minY), in: self)
+    }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         context == .outsideApplication ? .copy : []

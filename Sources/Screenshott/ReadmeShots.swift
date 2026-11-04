@@ -6,7 +6,7 @@ import ScreenshottCore
 /// docs/images. scripts/readme-shots.sh runs it. A normal launch never gets here.
 ///
 /// Everything happens over a stock macOS wallpaper, so the shots never contain what was
-/// really on screen.
+/// really on screen. Only the example workflows show, never other installed ones.
 ///
 /// The menu bar menu isn't shot: on macOS 26 the status item is drawn by the system, and
 /// `performClick` opens our menu beside an off-screen stand-in window (2026-11-02).
@@ -109,16 +109,22 @@ extension AppDelegate {
             of: screen, as: "thumbnail.png", in: directory
         )
 
-        // 3. Settings, lifted to the backdrop's level so it shows above it.
+        // 3. Settings: the Presets tab, then Workflows. Lifted to the backdrop's level so
+        // it shows above it, and re-centred after each tab resizes the window.
         openSettings()
-        guard let window = settingsWindow else { return }
+        guard let window = settingsWindow, let model = settingsModel else { return }
         window.level = .floating
-        window.setFrameOrigin(CGPoint(
-            x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2
-        ))
-        window.orderFrontRegardless()
-        try? await Task.sleep(for: .milliseconds(800))
-        await ReadmeShots.photograph(window.frame.insetBy(dx: -40, dy: -40), of: screen, as: "settings.png", in: directory)
+        for (tab, name) in [(SettingsModel.Tab.presets, "settings.png"), (.workflows, "workflows.png")] {
+            model.tab = tab
+            try? await Task.sleep(for: .milliseconds(500))
+            window.setFrameOrigin(CGPoint(
+                x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2
+            ))
+            window.orderFrontRegardless()
+            try? await Task.sleep(for: .milliseconds(500))
+            await ReadmeShots.photograph(window.frame.insetBy(dx: -40, dy: -40), of: screen, as: name, in: directory)
+        }
+        model.tab = .presets
         window.level = .normal
         window.close()
     }

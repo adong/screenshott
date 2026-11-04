@@ -1,5 +1,5 @@
 #!/bin/bash
-# Photograph the area overlay, the thumbnail and Settings for the README,
+# Photograph the area overlay, the thumbnail and Settings (Presets and Workflows) for the README,
 # driving the real app without a mouse (see Sources/Screenshott/ReadmeShots.swift).
 # Writes PNGs already cropped for docs/images, shot over a stock wallpaper.
 #
@@ -14,6 +14,12 @@ cd "$(dirname "$0")/.."
 APP="dist/Screenshott.app"
 OUT="${1:-dist/readme-shots}"
 [[ -d "$APP" ]] || { echo "no $APP — run scripts/bundle.sh first" >&2; exit 1; }
+# A screen saver draws above every window, the backdrop included, so the shots would
+# show it instead (2026-11-03: a flip clock).
+if /usr/bin/pgrep -xq ScreenSaverEngine || /usr/bin/pgrep -xq legacyScreenSaver; then
+    echo "a screen saver is running — wake the screen and run again" >&2
+    exit 1
+fi
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 

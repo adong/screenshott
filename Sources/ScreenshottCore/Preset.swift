@@ -123,9 +123,10 @@ public struct Preset: Equatable, Sendable {
     }
 
     /// The Enter action to run: the stored choice if this version knows it, else the
-    /// default.
-    public func action(stored name: String?) -> CaptureAction {
+    /// default. A stored workflow that has since been removed falls back too.
+    public func action(stored name: String?, installedWorkflows: Set<String> = []) -> CaptureAction {
         guard hasConfigurableAction, let name, let action = CaptureAction(name: name) else { return defaultAction }
+        if let id = action.workflowID, !installedWorkflows.contains(id) { return defaultAction }
         return action
     }
 
