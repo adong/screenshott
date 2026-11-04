@@ -16,9 +16,25 @@ hotkey, get a pixel-exact PNG on the clipboard and in an archive folder, then
 optionally mark it up. It is being built milestone by milestone; each milestone is a
 vertical slice you can use day to day.
 
-> **Status: M0 done; M1–M4 and M7 in testing.** Full-screen, area, live-area, delayed
-> and repeat-last-area capture, the editor, Combine and workflows are usable today.
-> Scrolling capture is next — see [Roadmap](#roadmap).
+> **Status: v0.1.0, an early preview.** M0 is done; M1–M5 and M7 are built and in
+> testing. Full-screen, area, live-area, delayed, repeat-last-area and scrolling
+> capture, the editor, Combine and workflows are all in — see [Roadmap](#roadmap).
+
+## Download
+
+Get `Screenshott-<version>.dmg` from [Releases](../../releases), open it and drag
+Screenshott to Applications. It runs on macOS 14 or later.
+
+This preview is signed with a self-signed certificate, not an Apple Developer ID, so
+macOS blocks the first launch. To open it the first time:
+
+1. Open Screenshott from Applications. macOS says it can't verify the app; click **Done**.
+2. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**
+   next to the Screenshott message. Confirm with your password or Touch ID.
+3. When asked, allow **Screen Recording** (and **Accessibility** if you want
+   scrolling capture to scroll for you), then choose **Quit & Reopen**.
+
+Later versions signed with the same certificate keep these permissions.
 
 ## Screenshots
 
@@ -40,8 +56,9 @@ its own key.
 
 **Floating thumbnail.** Every capture lands on the clipboard and in the archive
 folder, and a thumbnail appears in the corner. Drag it into any app to drop the PNG
-file, click it to open the image, or right-click for Copy, Show in Finder and Move to
-Trash. It fades out on its own after a few seconds.
+file, click it to mark it up in the editor, use the **+** to combine it with your next
+capture, or right-click for Copy, Show in Finder, workflows and Move to Trash. It
+fades out on its own after a few seconds.
 
 <p align="center">
   <img src="docs/images/settings.png" width="520" alt="The Presets tab of Settings: seven presets, each with a shortcut well, a reset button and a Then menu for what happens after the capture; Delayed Area also has a 3 s / 5 s / 10 s countdown choice">
@@ -101,6 +118,7 @@ see [README screenshots](#readme-screenshots).
 | **Live area** | Drag over the moving screen and let go; the app you capture keeps its active look. A click takes the window under the pointer. |
 | **Repeat last area** | Takes the same rectangle as the last area capture again, without picking. |
 | **Delayed area** | A 3, 5 or 10 second countdown, then the frozen overlay. Click the countdown to cancel. |
+| **⌥⌘⇧2 scrolling capture** | Drag over the part that scrolls, or click to take the scroll area or window under the pointer. **Enter** scrolls it for you (needs Accessibility); **M** lets you scroll it yourself. Frames are stitched as they arrive, sticky headers and footers appear once, a strip at the screen edge shows the result growing, and it stops at 30,000 px. **Enter** again saves, **Esc** cancels. |
 | **Overlay keys** | **Enter** runs the preset's action · **⌘C** copy only · **⌘S** save as · **E** save and open in the editor · **1–9** run a workflow · **Esc** cancel. The same actions are on a bar under the selection. |
 | **Workflows** | Post-capture chains of scripts (any language), Apple Shortcuts, URL templates and built-in actions. Scripts get the image path and details on stdin and in `SCREENSHOTT_*` variables and answer with JSON: copy text, show a message, open a URL, or hand back a new image. They run out of process, without Screenshott's Screen Recording permission. Three examples ship in `Examples/Workflows`. |
 | **Custom shortcuts** | Record any combo in Settings. It must use two modifiers (or be a function key), can't clash with another preset or with macOS screenshots, Spotlight and app switching, and is checked against other apps that already hold it. |
@@ -120,10 +138,10 @@ see [README screenshots](#readme-screenshots).
 |---|---|---|
 | **M0 Skeleton** | Menu bar app, ⌘⇧1 full screen → clipboard + archive, signing, permission flow | ✅ Done |
 | **M1 Frozen overlay** | ⌘⇧2 area capture on a frozen screen: drag to select, click to snap to a window, magnifier, 1 px arrow-key nudge, multi-display, floating thumbnail with drag-out | 🧪 Built; tested on one 1x display, Retina and multi-display next |
-| **M2 Presets & hotkeys** | Every hotkey is a preset: frozen or live × no selection / area / window × what Enter does. Hotkey recorder, settings, shared action interface | 🧪 Built; the scrolling preset waits for M5 |
+| **M2 Presets & hotkeys** | Every hotkey is a preset: frozen or live × no selection / area / window × what Enter does. Hotkey recorder, settings, shared action interface | 🧪 Built; hands-on test of Live Area next |
 | **M3 Editor** | Crop, zoom, arrow, rectangle, text, pixelate (with a solid-cover mode that really replaces the pixels). Re-editable after saving | 🧪 Built; hands-on test next |
 | **M4 Combine** | Put several captures on one canvas with automatic layout | 🧪 Built; hands-on test next |
-| **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | Planned |
+| **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | 🧪 Built; hands-on test against the app list next |
 | **M7 Workflows** | Alfred-style post-capture workflows: scripts, Apple Shortcuts or URL templates that receive the image and decide where it goes next | 🧪 Built; three examples |
 | **M6 Polish** | Benchmark mode (p50/p95 against Shottr's 17 ms grab), launch at login | 🚧 Bench mode and faster capture done; PNG encoding off the main thread next |
 
@@ -133,8 +151,8 @@ see [README screenshots](#readme-screenshots).
 |---|---|---|---|---|
 | Capture Area | Frozen | Drag; click snaps to a window | Copy + save + thumbnail | ⌘⇧2 |
 | Capture Full Screen | Frozen | Display under the mouse | Copy + save + thumbnail | ⌘⇧1 |
-| Full Screen to Editor | Frozen | Crop in the editor | Open the editor (M3) | ⌥⌘⇧1 |
-| Scrolling Capture | Live | Drag, then scroll | Stitch → thumbnail (M5) | ⌥⌘⇧2 |
+| Full Screen to Editor | Frozen | Crop in the editor | Open the editor | ⌥⌘⇧1 |
+| Scrolling Capture | Live | Drag, then scroll | Stitch → copy + save + thumbnail | ⌥⌘⇧2 |
 | Live Area | Live | Drag; letting go captures | Copy + save + thumbnail | Unbound |
 | Repeat Last Area | Live | Nothing to pick | Copy + save + thumbnail | Unbound |
 | Delayed Area | Frozen | Countdown, then drag | Copy + save + thumbnail | Unbound |
@@ -154,7 +172,12 @@ Xcode itself is not needed.
 scripts/bundle.sh          # release build → dist/Screenshott.app
 scripts/bundle.sh debug    # debug build
 open dist/Screenshott.app
+scripts/make-dmg.sh        # dist/Screenshott-<version>.dmg for a release
 ```
+
+`make-dmg.sh` packs the built app with a link to Applications, the example workflows
+and a *Read Me First* note with the first-launch steps, then signs the image with the
+app's identity.
 
 `bundle.sh` quits a running Screenshott before replacing the bundle and reopens it
 afterwards, so you never test the old build by accident.
@@ -220,7 +243,7 @@ Tools/MakeIcon/            App icon drawing code
 Tools/TCCProbe/            Permission probe for verify-disclaim.sh
 Support/                   Info.plist and AppIcon.icns
 docs/workflows.md          How to write a workflow
-scripts/                   bundle.sh, test.sh, self-test.sh, make-icon.sh, readme-shots.sh, bench.sh, pack-workflows.sh, verify-disclaim.sh
+scripts/                   bundle.sh, make-dmg.sh, test.sh, self-test.sh, make-icon.sh, readme-shots.sh, bench.sh, pack-workflows.sh, verify-disclaim.sh
 requirements.md            Decision log: every product and technical choice, with reasons (Chinese)
 ```
 
