@@ -162,7 +162,7 @@ public enum WorkflowStep: Equatable, Sendable {
             case .save: "Save it to the screenshots folder"
             case .saveAs: "Ask where to save it"
             case .thumbnail: "Show the thumbnail"
-            case .openEditor: "Open it in the editor"
+            case .editor: "Open it in the editor"
             default: action.title
             }
         }

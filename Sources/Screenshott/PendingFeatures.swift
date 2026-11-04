@@ -5,9 +5,9 @@ import ScreenshottCore
 /// beeps, so its preset already has a hotkey, a menu item and a place in Settings.
 /// Merging M3 or M5 deletes the matching stub here.
 extension AppDelegate {
-    /// M3: opens the editor on `image`.
-    func openInEditor(_ image: CGImage, scale: CGFloat) {
-        Log.write("editor: arrives with M3 (\(image.width)x\(image.height) @\(Int(scale))x)")
+    /// M3: opens the editor on a saved capture (`item.file`).
+    func openInEditor(_ item: CaptureItem) {
+        Log.write("editor: arrives with M3 (\(item.file?.lastPathComponent ?? "unsaved"), @\(Int(item.scale))x)")
         Toast.show("The editor arrives with M3")
         NSSound.beep()
     }

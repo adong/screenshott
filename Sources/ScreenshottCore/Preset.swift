@@ -37,7 +37,7 @@ public enum PresetID: String, CaseIterable, Identifiable, Sendable {
             Preset(id: self, title: "Capture Full Screen", screen: .frozen, selection: .none, defaultAction: .standard,
                    defaultShortcut: .captureFullScreen)
         case .fullScreenToEditor:
-            Preset(id: self, title: "Full Screen to Editor", screen: .frozen, selection: .none, defaultAction: .openEditor,
+            Preset(id: self, title: "Full Screen to Editor", screen: .frozen, selection: .none, defaultAction: .editor,
                    defaultShortcut: Shortcut(
                        keyCode: UInt32(kVK_ANSI_1), modifiers: UInt32(cmdKey | shiftKey | optionKey), key: "1"
                    ))

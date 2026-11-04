@@ -43,7 +43,7 @@ import Testing
     let area = PresetID.captureArea.preset
     #expect(area.screen == .frozen && area.selection == .area && area.defaultAction == .standard)
     let editor = PresetID.fullScreenToEditor.preset
-    #expect(editor.selection == .none && editor.defaultAction == .openEditor)
+    #expect(editor.selection == .none && editor.defaultAction == .editor)
     #expect(PresetID.liveArea.preset.screen == .live)
     #expect(PresetID.repeatArea.preset.selection == .lastArea)
     #expect(PresetID.delayedArea.preset.delay == 3)

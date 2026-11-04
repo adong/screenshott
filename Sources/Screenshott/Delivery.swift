@@ -44,8 +44,8 @@ final class Delivery {
     )
 
     let thumbnails = Thumbnails()
-    /// The editor (M3). AppDelegate points it at `openInEditor`.
-    var openEditor: ((CGImage, CGFloat) -> Void)?
+    /// The editor (M3), given the capture once it's saved. AppDelegate points it at `openInEditor`.
+    var openEditor: ((CaptureItem) -> Void)?
     /// Installed workflows: (id, capture, log). AppDelegate points it at the WorkflowRunner.
     var runWorkflow: ((String, CaptureItem, String) -> Void)?
     /// The most recent capture.
@@ -76,10 +76,6 @@ final class Delivery {
     /// file name to `log`.
     func run(_ action: Action, on item: CaptureItem, log: String) {
         switch action {
-        case .openEditor:
-            Log.write("\(log) → editor")
-            openEditor?(item.image, item.scale)
-            return
         case .workflow(let id):
             runWorkflow?(id, item, log)
             return
@@ -124,7 +120,17 @@ final class Delivery {
             }
         case .saveAs:
             saveAs(item, png, log: "\(log) \(timings)")
-        case .openEditor, .workflow:
+        case .editor:
+            // Saved, not copied: the editor's ⌘C and ⌘S deliver the marked-up version.
+            do {
+                let url = try save(item, png)
+                Log.write("\(log) \(timings) saved \(url.lastPathComponent), opening the editor")
+                openEditor?(item)
+            } catch {
+                Log.write("\(log) save failed: \(error)")
+                NSSound.beep()
+            }
+        case .workflow:
             break
         }
     }

@@ -21,7 +21,7 @@ final class OverlayActionBar {
         [
             Item(title: "Copy", key: "⌘C", symbol: "doc.on.doc", action: .copyOnly),
             Item(title: "Save As", key: "⌘S", symbol: "square.and.arrow.down", action: .saveAs),
-            Item(title: "Editor", key: "E", symbol: "pencil.tip", action: .openEditor),
+            Item(title: "Editor", key: "E", symbol: "pencil.tip", action: .editor),
         ] + workflows.prefix(9).enumerated().map { index, workflow in
             Item(title: workflow.name, key: "\(index + 1)", symbol: "bolt.fill", icon: workflow.icon, action: .workflow(workflow.id))
         }

@@ -127,7 +127,7 @@
 - **延时**是一个预设，倒计时 3 / 5 / 10 s 在设置里选（默认 3 s）。倒计时显示在鼠标所在屏中央；点它或再按一次热键 = 取消；数完进冻结遮罩，和"区域"一样操作。
 - **重复上次区域**：记住上一次任何区域截图（冻结、实时、延时都算）的位置，按屏幕坐标存（换了显示器排列也照这个坐标找屏）。实时截那块屏，不弹遮罩。还没截过区域时改为打开区域遮罩；那块区域已不在任何屏上时提示并响一声。
 - **实时区域**：每屏一层透明遮罩，Screenshott 不抢焦点，被截的 app 保持激活的样子；代价是鼠标没法变成十字（只有前台 app 能换指针），用穿过鼠标的虚线代替。拖完松手立即截；单击 = 鼠标下的窗口；Esc 或右键取消；再按一次热键也取消。
-- **全屏进编辑器（⌥⌘⇧1）、长截图（⌥⌘⇧2）**：热键、菜单、设置都在，M3 / M5 合并前按了只提示"arrives with M3 / M5"并响一声。入口是 `AppDelegate.openInEditor(_:scale:)` 和 `runScrollingCapture()`，桩在 `PendingFeatures.swift`。
+- **全屏进编辑器（⌥⌘⇧1）、长截图（⌥⌘⇧2）**：热键、菜单、设置都在，M3 / M5 合并前按了只提示"arrives with M3 / M5"并响一声。入口是 `AppDelegate.openInEditor(_:)`（`.editor` 先存进文件夹，再交给编辑器，和 M3 的 `Delivery.Action.editor` 同名同义）和 `runScrollingCapture()`，桩在 `PendingFeatures.swift`。
 - **动作接口**：`Delivery.run(_:on:)` 是所有截后动作的统一入口（复制、存档、另存为、缩略图、编辑器），遮罩按键、缩略图菜单都走它；`Delivery.deliver(...)` 签名不变。#10 的 workflow 是又一种动作。
 - **设置窗口分页**：预设 / 通用（7 个预设加其他选项一页放不下笔记本屏幕）。
 - **存储**：快捷键仍是 `shortcut.<预设名>`（`captureArea`、`captureFullScreen` 沿用，旧设置不丢）；动作和倒计时是 `preset.<预设名>.action` / `.delay`；上次区域是 `lastArea`。

@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shortcuts.start(handlers: Dictionary(uniqueKeysWithValues: PresetID.allCases.map { id in
             (id, { [weak self] in self?.presets.run(id) })
         }))
-        delivery.openEditor = { [weak self] image, scale in self?.openInEditor(image, scale: scale) }
+        delivery.openEditor = { [weak self] item in self?.openInEditor(item) }
         delivery.runWorkflow = { [weak self] id, item, log in _ = self?.workflowRunner.run(id, on: item, log: log) }
         delivery.thumbnails.workflows = { [weak self] in
             self?.workflows.installed.map { ($0.name, .workflow($0.id)) } ?? []
@@ -303,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Log.write("capture area cancelled")
         }
         // The editor keeps the focus it just took.
-        if result?.action != .openEditor { _ = previousApp?.activate(options: []) }
+        if result?.action != .editor { _ = previousApp?.activate(options: []) }
         previousApp = nil
     }
 }

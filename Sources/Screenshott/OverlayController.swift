@@ -117,7 +117,7 @@ final class OverlayController {
         } else if flags == .command, key == "s" {
             confirm(.saveAs)
         } else if flags.isEmpty, key == "e" {
-            confirm(.openEditor)
+            confirm(.editor)
         } else if flags.isEmpty, let key, let n = Int(key), (1...9).contains(n) {
             let workflows = barItems.filter { $0.action.workflowID != nil }
             if workflows.indices.contains(n - 1) { confirm(workflows[n - 1].action) } else { NSSound.beep() }

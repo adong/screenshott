@@ -221,7 +221,7 @@ private final class ThumbnailMenuTarget: NSObject {
     @objc func copyImage() { item?.copyFile() }
     @objc func reveal() { item?.revealFile() }
     @objc func open() { item?.openFile() }
-    @objc func openInEditor() { item?.run(.openEditor) }
+    @objc func openInEditor() { item?.run(.editor) }
     @objc func runWorkflow(_ sender: NSMenuItem) { item?.runWorkflow(at: sender.tag) }
     @objc func trash() { item?.trashFile() }
 }

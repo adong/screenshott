@@ -12,19 +12,21 @@ public enum CaptureAction: Hashable, Sendable {
     case save
     /// A save panel instead of the archive folder.
     case saveAs
+    /// Save to the folder and show the thumbnail, no copy.
     case thumbnail
-    case openEditor
+    /// Save to the folder, then open the editor on that file (M3). No copy or thumbnail.
+    case editor
     /// An installed workflow, by its id.
     case workflow(String)
 
     /// What Settings offers as a preset's Enter action, before the installed workflows.
-    public static let presetChoices: [CaptureAction] = [.standard, .copyOnly, .saveAs, .openEditor]
+    public static let presetChoices: [CaptureAction] = [.standard, .copyOnly, .saveAs, .editor]
 
     /// The built-ins a workflow's `action` step may name. `standard` is left out: a
     /// workflow says which of copy / save / thumbnail it wants.
-    public static let workflowSteps: [CaptureAction] = [.copyOnly, .save, .saveAs, .thumbnail, .openEditor]
+    public static let workflowSteps: [CaptureAction] = [.copyOnly, .save, .saveAs, .thumbnail, .editor]
 
-    private static let builtIn: [CaptureAction] = [.standard, .copyOnly, .save, .saveAs, .thumbnail, .openEditor]
+    private static let builtIn: [CaptureAction] = [.standard, .copyOnly, .save, .saveAs, .thumbnail, .editor]
 
     /// Stable name for UserDefaults and for `workflow.json` action steps.
     public var name: String {
@@ -34,7 +36,7 @@ public enum CaptureAction: Hashable, Sendable {
         case .save: "save"
         case .saveAs: "save-as"
         case .thumbnail: "thumbnail"
-        case .openEditor: "editor"
+        case .editor: "editor"
         case .workflow(let id): "workflow:\(id)"
         }
     }
@@ -58,7 +60,7 @@ public enum CaptureAction: Hashable, Sendable {
         case .save: "Save to folder"
         case .saveAs: "Save As…"
         case .thumbnail: "Show thumbnail"
-        case .openEditor: "Open in editor"
+        case .editor: "Open in editor"
         case .workflow(let id): id
         }
     }
