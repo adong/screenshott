@@ -17,8 +17,10 @@ OUT="${1:-dist/readme-shots}"
 ONLY="${2:-}"
 [[ -d "$APP" ]] || { echo "no $APP — run scripts/bundle.sh first" >&2; exit 1; }
 # A screen saver draws above every window, the backdrop included, so the shots would
-# show it instead (2026-11-03: a flip clock).
-if /usr/bin/pgrep -xq ScreenSaverEngine || /usr/bin/pgrep -xq legacyScreenSaver; then
+# show it instead (2026-11-03: a flip clock). ScreenSaverEngine runs only while one
+# shows; legacyScreenSaver, the host for older .saver bundles, can idle for weeks after
+# (2026-11-04: running 30 days with no saver up), so it doesn't count.
+if /usr/bin/pgrep -xq ScreenSaverEngine; then
     echo "a screen saver is running — wake the screen and run again" >&2
     exit 1
 fi

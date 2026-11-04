@@ -45,11 +45,23 @@ extension AppDelegate {
             return
         }
 
-        // Mid-scroll: the red frame on the page and the strip growing at the edge.
-        try? await Task.sleep(for: .milliseconds(1600))
+        // Mid-scroll, once the stitch is about twice the page: the red frame on the page
+        // and the strip growing at the edge.
+        for _ in 0..<50 where (scrolling?.stitchedHeight ?? .max) < selection.height * 2 {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         let strip = NSApp.windows.first { $0.level.rawValue == NSWindow.Level.screenSaver.rawValue + 1 && $0.isVisible }
-        let union = (strip?.frame ?? frame).union(frame).insetBy(dx: -40, dy: -40).intersection(screen.visibleFrame)
-        await ReadmeShots.photograph(union, of: screen, as: "scrolling.png", in: directory)
+        var crop = (strip?.frame ?? frame).union(frame).insetBy(dx: -40, dy: -40).intersection(screen.visibleFrame)
+        // Stop just outside the strip: past it is only the screen edge, where other apps
+        // keep their edge handles.
+        if let strip = strip?.frame {
+            if strip.midX < frame.midX {
+                crop = CGRect(x: strip.minX - 4, y: crop.minY, width: crop.maxX - strip.minX + 4, height: crop.height)
+            } else {
+                crop.size.width = strip.maxX + 4 - crop.minX
+            }
+        }
+        await ReadmeShots.photograph(crop, of: screen, as: "scrolling.png", in: directory)
 
         for _ in 0..<200 where scrolling != nil { try? await Task.sleep(for: .milliseconds(100)) }
         page.window.orderOut(nil)
