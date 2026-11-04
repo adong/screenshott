@@ -65,7 +65,7 @@ see [README screenshots](#readme-screenshots).
 | **Floating thumbnail** | Drag out as a file, click to open, right-click menu. Thumbnails stack per screen and never appear in your next capture. |
 | **Clipboard + archive** | Every capture goes to the clipboard *and* to the save folder (`~/Pictures/Screenshott/` by default), so the next copy never loses a shot. Files are named `Screenshott 2026-11-02 at 09.41.27.png`. |
 | **Retina-correct PNGs** | Cropped at physical pixels and saved with 144 DPI metadata on a 2x display, so a capture opens at its real size instead of double. |
-| **Fast** | About 115 ms from ⌘⇧1 to clipboard and 120–160 ms from ⌘⇧2 to a frozen overlay on a 2560×1440 display (M3 Max). Each stage is timed in the log. |
+| **Fast** | ⌘⇧2 puts the frozen overlay on screen in 74 ms (p50; p95 84 ms), down from 119 ms; ⌘⇧1 has the PNG on the clipboard and on disk in 110 ms, down from 133 ms. Measured with `scripts/bench.sh` on a 2560×1440 display (M3 Max, macOS 26.7). For comparison, Shottr publishes a 17 ms grab — ours is 35 ms — and ~165 ms to display. Each stage is timed in the log. |
 | **Permission that sticks** | Signed with a stable self-signed certificate, so the Screen Recording grant survives rebuilds. If the grant is missing, the app offers *Open System Settings* and *Quit & Reopen*. |
 
 ## Roadmap
@@ -79,7 +79,7 @@ see [README screenshots](#readme-screenshots).
 | **M4 Combine** | Put several captures on one canvas with automatic layout | Planned |
 | **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | Planned |
 | **M7 Workflows** | Alfred-style post-capture workflows: scripts, Apple Shortcuts or URL templates that receive the image and decide where it goes next | Planned |
-| **M6 Polish** | Benchmark mode (p50/p95 against Shottr's 17 ms grab), launch at login | Planned |
+| **M6 Polish** | Benchmark mode (p50/p95 against Shottr's 17 ms grab), launch at login | 🚧 Bench mode and faster capture done; PNG encoding off the main thread next |
 
 ### Planned default hotkeys
 
@@ -125,6 +125,19 @@ signing with a warning.
 **Icon.** `scripts/make-icon.sh` redraws `Support/AppIcon.icns` from the vector
 code in `Tools/MakeIcon`, rendering each size separately so small sizes stay crisp.
 
+### Benchmark
+
+```bash
+scripts/bench.sh           # 20 rounds, about 2 minutes → dist/bench/<date>.txt
+```
+
+Launches the built app with `--bench 20`, which times every capture stage with no input
+and logs p50/p95: the old and new grab paths side by side, ⌘⇧1 end to end, and ⌘⇧2 up to
+the overlay being on screen. Bench captures go to a temp folder that is deleted
+afterwards and to a private pasteboard, so nothing reaches the save folder or the
+clipboard. Keep off the keyboard, mouse and menu bar icon while it runs: the overlay
+flashes up about 60 times. `--sample` also records a `sample` profile of the run.
+
 ### README screenshots
 
 ```bash
@@ -145,10 +158,11 @@ Sources/ScreenshottCore/   Pure logic with no UI, covered by unit tests
 Tests/                     Swift Testing suite for ScreenshottCore
 Tools/MakeIcon/            App icon drawing code
 Support/                   Info.plist and AppIcon.icns
-scripts/                   bundle.sh, test.sh, make-icon.sh, readme-shots.sh
+scripts/                   bundle.sh, test.sh, make-icon.sh, readme-shots.sh, bench.sh
 requirements.md            Decision log: every product and technical choice, with reasons (Chinese)
 ```
 
 The log is at `~/Library/Logs/Screenshott.log`. Each launch records the version,
 code hash and permission state; each capture records how long listing displays,
-grabbing pixels, encoding and saving took.
+grabbing pixels, encoding and saving took. The same stages are `os_signpost` intervals:
+`log stream --signpost --predicate 'subsystem == "com.adong.Screenshott"'` shows them live.

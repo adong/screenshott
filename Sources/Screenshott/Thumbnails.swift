@@ -26,6 +26,8 @@ final class Thumbnails {
         if crowd.count > Self.perScreenLimit { crowd.first?.dismiss() }
         relayout()
         item.present()
+        // So the next capture's cached window list has this panel to leave out.
+        ShareableContentCache.refresh()
     }
 
     private func relayout() {

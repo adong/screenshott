@@ -5,9 +5,11 @@ import ScreenshottCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
-    private let preferences = Preferences()
+    /// A bench run gets throwaway settings: temp save folder, no sound, no thumbnails.
+    private let preferences = Preferences(defaults: Bench.defaults ?? .standard)
     private lazy var shortcuts = ShortcutCenter(preferences: preferences)
-    private lazy var delivery = Delivery(preferences: preferences)
+    /// Not private: Bench.swift points it at a private pasteboard.
+    lazy var delivery = Delivery(preferences: preferences)
     private var settings: SettingsWindowController?
 
     /// Not private, like `runAreaCapture`: ReadmeShots.swift drives them.
@@ -54,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .captureFullScreen: { [weak self] in self?.captureFullScreen() },
         ])
         Permissions.requestScreenCaptureIfNeeded()
+        if Permissions.hasScreenCapture { ShareableContentCache.start() }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = Self.menuBarGlyph
         statusItem.menu = NSMenu()
@@ -64,6 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             """)
         if let directory = ReadmeShots.directory {
             Task { await runReadmeShots(into: directory) }
+        }
+        if let runs = Bench.runs {
+            Task { await runBench(runs: runs) }
         }
     }
 
@@ -166,8 +172,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Task { await runAreaCapture(pressedAt: pressed) }
     }
 
-    /// Display under the mouse → copy + archive + thumbnail.
-    private func runFullScreenCapture() async {
+    /// Display under the mouse → copy + archive + thumbnail. Not private: Bench.swift
+    /// times it.
+    func runFullScreenCapture() async {
         guard !areaCaptureRunning else { return }
         guard Permissions.hasScreenCapture else {
             Permissions.showMissingScreenCaptureAlert()
