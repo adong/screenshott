@@ -109,34 +109,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let item = menu.addItem(withTitle: title, action: #selector(runPresetFromMenu(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = id.rawValue
+            item.image = Self.icon(id.menuSymbol)
             if let shortcut = shortcuts.shortcuts[id] { Self.show(shortcut, on: item) }
         }
         for action in ShortcutCenter.Action.allCases where shortcuts.taken.contains(action) {
             let combo = shortcuts.shortcuts[action]?.displayString ?? ""
-            menu.addItem(withTitle: "\(combo) is taken by another app (Shottr?)", action: nil, keyEquivalent: "")
-                .isEnabled = false
+            let item = menu.addItem(withTitle: "\(combo) is taken by another app (Shottr?)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            item.image = Self.icon("exclamationmark.triangle")
         }
         if !Permissions.hasScreenCapture {
-            menu.addItem(withTitle: "Grant Screen Recording…", action: #selector(grantPermission), keyEquivalent: "")
-                .target = self
+            let item = menu.addItem(withTitle: "Grant Screen Recording…", action: #selector(grantPermission), keyEquivalent: "")
+            item.target = self
+            item.image = Self.icon("exclamationmark.triangle")
         }
         if !Accessibility.isTrusted {
-            menu.addItem(withTitle: "Allow Auto-scroll (Accessibility)…", action: #selector(grantAccessibility), keyEquivalent: "")
-                .target = self
+            let item = menu.addItem(
+                withTitle: "Allow Auto-scroll (Accessibility)…", action: #selector(grantAccessibility), keyEquivalent: ""
+            )
+            item.target = self
+            item.image = Self.icon("accessibility")
         }
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Open in Editor…", action: #selector(openInEditor), keyEquivalent: "")
-            .target = self
-        menu.setSubmenu(workflowsMenu(), for: menu.addItem(withTitle: "Workflows", action: nil, keyEquivalent: ""))
-        menu.addItem(withTitle: "Open Screenshots Folder", action: #selector(openArchive), keyEquivalent: "")
-            .target = self
-        menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-            .target = self
-        menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "")
-            .target = self
+        add("Open in Editor…", symbol: "pencil.and.outline", action: #selector(openInEditor), to: menu)
+        let workflows = menu.addItem(withTitle: "Workflows", action: nil, keyEquivalent: "")
+        workflows.image = Self.icon("bolt")
+        menu.setSubmenu(workflowsMenu(), for: workflows)
+        add("Open Screenshots Folder", symbol: "folder", action: #selector(openArchive), to: menu)
+        add("Settings…", symbol: "gearshape", action: #selector(openSettings), key: ",", to: menu)
+        add("Open Log", symbol: "doc.text", action: #selector(openLog), to: menu)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Screenshott", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            .image = Self.icon("power")
+    }
+
+    private func add(_ title: String, symbol: String, action: Selector, key: String = "", to menu: NSMenu) {
+        let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key)
+        item.target = self
+        item.image = Self.icon(symbol)
+    }
+
+    /// An SF Symbol for a menu item, as Shottr's menu has. A template, so it follows the
+    /// menu's text color, highlighted or not.
+    private static func icon(_ symbol: String) -> NSImage? {
+        NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
     }
 
     /// Prints a global shortcut on a menu item, where AppKit can draw it.

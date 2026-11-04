@@ -57,6 +57,21 @@ final class PresetSettings: ObservableObject {
     private static func key(_ id: PresetID, _ name: String) -> String { "preset.\(id.rawValue).\(name)" }
 }
 
+extension PresetID {
+    /// The SF Symbol beside the preset in the menu bar menu.
+    var menuSymbol: String {
+        switch self {
+        case .captureArea: "rectangle.dashed"
+        case .captureFullScreen: "display"
+        case .fullScreenToEditor: "square.and.pencil"
+        case .captureScrolling: "chevron.down.2"
+        case .liveArea: "rectangle.dashed.badge.record"
+        case .repeatArea: "repeat"
+        case .delayedArea: "timer"
+        }
+    }
+}
+
 /// Turns a preset into a capture: picks the screen and region it describes, then hands
 /// the image to its Enter action through Delivery. Frozen area and full-screen captures
 /// stay in AppDelegate; this adds the countdown, Repeat Last Area and Live Area.

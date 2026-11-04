@@ -16,7 +16,7 @@ hotkey, get a pixel-exact PNG on the clipboard and in an archive folder, then
 optionally mark it up. It is being built milestone by milestone; each milestone is a
 vertical slice you can use day to day.
 
-> **Status: v0.1.0, an early preview.** M0 is done; M1–M5 and M7 are built and in
+> **Status: v0.2.0, an early preview.** M0 is done; M1–M5 and M7 are built and in
 > testing. Full-screen, area, live-area, delayed, repeat-last-area and scrolling
 > capture, the editor, Combine and workflows are all in — see [Roadmap](#roadmap).
 
@@ -39,7 +39,7 @@ Later versions signed with the same certificate keep these permissions.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/overlay.png" width="760" alt="Area capture: the frozen screen dimmed outside a 1024 × 576 selection, with resize handles, a size label, the action bar, a tag beside the pointer reading 1792, 936 and #086325 with a green swatch, and a pixel loupe below it">
+  <img src="docs/images/overlay.png" width="760" alt="Area capture: the frozen screen dimmed outside a 1024 × 576 selection, with resize handles, a size label, the action bar, a tag beside the pointer reading #086325 rgb(8, 99, 37) over 1792, 936 with a green swatch, and a pixel loupe below it">
 </p>
 
 **⌘⇧2 area capture.** The screen freezes the instant you press the hotkey, so nothing
@@ -133,7 +133,7 @@ see [README screenshots](#readme-screenshots).
 
 | | |
 |---|---|
-| **Menu bar app** | Lives in the menu bar, no Dock icon. The menu bar glyph is a template image, so it follows light and dark menu bars. |
+| **Menu bar app** | Lives in the menu bar, no Dock icon. The menu bar glyph is a template image, so it follows light and dark menu bars. Every item in its menu has an icon, as in Shottr: each capture preset with its shortcut, then the editor, workflows, the screenshots folder, Settings and the log. |
 | **⌘⇧1 full screen** | Captures the display under the mouse. Global hotkeys need no Accessibility permission. |
 | **⌘⇧2 area** | Frozen overlay on every display; drag, resize, move, click to snap to a window, 1 px arrow-key nudges (⇧ for 10 px, ⌥ to resize). The selection stays until you press Enter or double-click it. |
 | **Presets** | Seven of them (see [Presets](#presets)): area, full screen, full screen → editor, scrolling, live area, repeat last area and delayed area. Each has its own shortcut and its own action after the capture. All of them are also in the menu bar menu. |
@@ -164,7 +164,7 @@ see [README screenshots](#readme-screenshots).
 | **M2 Presets & hotkeys** | Every hotkey is a preset: frozen or live × no selection / area / window × what Enter does. Hotkey recorder, settings, shared action interface | 🧪 Built; hands-on test of Live Area next |
 | **M3 Editor** | Crop, zoom, arrow, rectangle, text, pixelate (with a solid-cover mode that really replaces the pixels). Re-editable after saving | 🧪 Built; hands-on test next |
 | **M4 Combine** | Put several captures on one canvas with automatic layout | 🧪 Built; hands-on test next |
-| **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | 🧪 Built; hands-on test against the app list next |
+| **M5 Scrolling capture** | Auto-scroll or manual scroll, overlap stitching, sticky header/footer removal, live stitch preview, 30,000 px cap | 🧪 Built; hands-on test against the app list under way — Safari passes, iTerm2 stops partway down (known issue) |
 | **M7 Workflows** | Alfred-style post-capture workflows: scripts, Apple Shortcuts or URL templates that receive the image and decide where it goes next | 🧪 Built; three examples |
 | **M6 Polish** | Benchmark mode (p50/p95 against Shottr's 17 ms grab), launch at login | 🚧 Bench mode and faster capture done; PNG encoding off the main thread next |
 

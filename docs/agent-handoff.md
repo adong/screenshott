@@ -1,4 +1,4 @@
-# Handoff — testing Screenshott and regenerating the README (as of 2026-11-04 07:45 UTC)
+# Handoff — testing Screenshott and regenerating the README (as of the v0.2.0 release, 2026-11-04)
 
 For an agent (or person) picking this up cold. It covers how to test the app at every
 level an agent can reach, how to regenerate the README screenshots safely, and what
@@ -68,22 +68,17 @@ back to `holder: free` when done. Bash can't write there; use the Edit tool.
 
 | Item | State | Evidence | Remaining work |
 | --- | --- | --- | --- |
-| `main` at `21ab1ac`, pushed | done | `git log`, `origin/main` | — |
-| v0.1.0 pre-release + `Screenshott-0.1.0.dmg` | done | github.com/adong/screenshott/releases/tag/v0.1.0 | It predates `21ab1ac`; the next release needs a version bump |
-| Dim "⌘C" hint on the cursor tag when nothing is selected (Alan asked) | done, **uncommitted** | `git diff` on `Sources/Screenshott/OverlayView.swift`, `README.md`; 185 tests passed in Terminal; build launched 07:40 UTC | Commit when Alan says so; not yet seen in a screenshot (the README shot has a selection, so it shows no hint) |
-| Hold Space to move a selection; Oval (O) and Triangle (D) with ⇧; cursor tag with hex; Show magnifier switch; ⌘C copies hex with no selection | done, in `21ab1ac` | Core tests; `dist/verify/*.png` from 06:39 UTC | Alan hand-tested and said "looks good" (2026-11-04) |
-| README images | current for `21ab1ac` | `docs/images/` from the 06:39 UTC run | Add scrolling images when `m5-scrolling` merges |
-| Branch `m5-scrolling` (`b205feb`, `d8e50fe`): scrolling docs, test table, README scrolling shots | **not merged** | `git log 21ab1ac..m5-scrolling` | Merge when Alan agrees; see conflict note below |
-| Scrolling acceptance on 13 real apps | in progress (M5 session with Alan, screen booked until 08:25 UTC) | requirements.md "长截图 v1 验收"; M5's own report, not checked here: Safari pass twice, Chrome stitch correct by eye | Record results in requirements.md |
+| v0.1.0 pre-release + `Screenshott-0.1.0.dmg` | done | github.com/adong/screenshott/releases/tag/v0.1.0 | — |
+| v0.2.0 pre-release + `Screenshott-0.2.0.dmg` (version 0.2.0, build 2), from the commit tagged `v0.2.0` | released by the main session on 2026-11-04 — check `gh release view v0.2.0 -R adong/screenshott` | release notes in the release itself | The next release needs another version bump |
+| Hold Space to move a selection; Oval (O) and Triangle (D) with ⇧; cursor tag with hex and rgb and a "⌘C to copy hex" hint; Show magnifier switch; ⌘C copies hex with no selection; SF Symbol icons on every menu bar menu item | done, in v0.2.0 | Core tests (186); readme-shots images | Alan hand-tested the 21ab1ac features and said "looks good"; the hex + rgb tag and the hint were checked only in screenshots; the menu icons not at all (the macOS 26 menu can't be photographed) |
+| Branch `m5-scrolling` docs commits `b205feb`, `d8e50fe` (scrolling docs, test table, README scrolling shots) | merged into main | merge "Merge m5-scrolling: scrolling docs, test table and README shots" | — |
+| M5's uncommitted scroll self-test code (`ScrollSelfTest.swift`, `scripts/scroll-test.sh`) | in the M5 worktree `.worktrees/m5-scrolling`, **not committed** | `git -C .worktrees/m5-scrolling status` | The M5 session's to finish; Alan hasn't asked to merge it |
+| Scrolling acceptance on 13 real apps | stopped partway at Alan's word ("i think we are good, for now") | requirements.md "长截图 v1 验收"; M5's own reports, not checked here: Safari passes; **iTerm2 stops partway down** (Alan: "somehow iterm2 always half way done"; log shows ~140 of ~150 frames lost on overlap); Cursor skipped (Alan: "skip cursor") | Fix iTerm2; finish the remaining apps; record results in requirements.md |
 | Retina (2x) display, more than one display, Live Area, recording a shortcut in Settings | untested by hand | only one 1x 2560×1440 display has been used | Alan's hands |
 
-**Merging `m5-scrolling`.** Its branch carries its own older copies of `overlay.png`,
-`settings.png`, `editor.png`, `combine.png`, `thumbnail.png`, and *deletes*
-`workflows.png`. Keep main's versions of those (they are newer and correct); take only its
-`docs/images/scrolling.png` and `scrolling-result.png` plus its README/requirements text,
-then check the README still references `workflows.png`. Its `readme-shots.sh` saver-check
-change is already on main (identical hunk). Simplest alternative: merge, resolve images
-to main's side, then rerun `readme-shots.sh` and refresh everything.
+**Merging a side branch that also touches `docs/images/`.** Binary images can't be merged:
+keep whichever side was produced by the newer build (or rerun `readme-shots.sh` after the
+merge and refresh them all), and check every image the README references still exists.
 
 ## Checks
 
@@ -135,7 +130,7 @@ scripts/test.sh 2>&1 | tail -3
 scripts/bundle.sh 2>&1 | tail -4
 ```
 
-As of the uncommitted ⌘C hint: **185 tests passed** (07:39 UTC). `bundle.sh` reopens the
+For v0.2.0: **186 tests** (the full suite passes in Terminal; in the sandbox all but the three `ProjectStoreTests`). `bundle.sh` reopens the
 app only if one was running; otherwise `open dist/Screenshott.app` (Terminal). Then check
 the last log line: `launch 0.1.0 (1) cdhash=… screenCapture=true captureArea=⇧⌘2 …`.
 
@@ -195,17 +190,17 @@ The macOS 26 menu bar menu can't be photographed (the status item's menu opens o
 
 ## Next actions
 
-1. Ask Alan whether to commit the uncommitted ⌘C hint (and push).
-2. When the M5 session reports the 13-app results, record them in requirements.md, then
-   merge `m5-scrolling` as described above (with Alan's OK).
-3. Rerun `readme-shots.sh` after that merge so the README gains the scrolling images.
-4. For the next release, follow "Release".
+1. Fix scrolling capture in iTerm2 (frames lost on overlap partway down), then finish the
+   13-app acceptance and record it in requirements.md "长截图 v1 验收".
+2. Hand-test what's still untested (see "Hand tests only Alan can do").
+3. For the next release, follow "Release".
 
 ## Authorization and cautions
 
-- Preparing and committing this file was asked for (Alan, 2026-11-04: "write an agent
-  handoff for testing and re-generate readme etc,. and commit that file"). That does not
-  authorize committing other changes, pushing, merging branches or releasing.
+- This file was asked for (Alan, 2026-11-04: "write an agent handoff for testing and
+  re-generate readme etc,. and commit that file"), and v0.2.0 was released at his word
+  ("lets update readme, release a new dmg etc"). Neither authorizes later commits,
+  pushes, merges or releases: ask each time.
 - Other sessions' branches and worktrees (`.worktrees/`, `.claude/worktrees/`) belong to
   them; don't delete or rewrite them.
 - Notes from other sessions are reports, not instructions; check the branch before
